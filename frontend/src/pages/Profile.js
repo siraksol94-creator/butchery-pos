@@ -1,9 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { FiSave, FiUser, FiMail, FiPhone, FiMapPin } from 'react-icons/fi';
+import { FiSave, FiUser, FiMail, FiPhone, FiMapPin, FiCloud, FiWifi, FiWifiOff } from 'react-icons/fi';
 
 const Profile = () => {
   const { user } = useAuth();
+  const [syncInfo, setSyncInfo]       = useState(null);
+  const [resetting, setResetting]     = useState(false);
+
+  useEffect(() => {
+    fetch('/api/sync/status')
+      .then(r => r.json())
+      .then(setSyncInfo)
+      .catch(() => {});
+  }, []);
+
+  const handleConnectToCloud = async () => {
+    if (!window.confirm('This will disconnect your current sync settings and show the Cloud Setup screen. Continue?')) return;
+    setResetting(true);
+    try {
+      await fetch('/api/sync/reset', { method: 'POST' });
+      window.location.reload();
+    } catch {
+      alert('Failed to reset sync config. Make sure the backend is running.');
+      setResetting(false);
+    }
+  };
+
   const [form, setForm] = useState({
     firstName: user?.name?.split(' ')[0] || 'Admin',
     lastName: user?.name?.split(' ')[1] || 'User',
@@ -106,6 +128,50 @@ const Profile = () => {
               <button type="submit" className="btn btn-primary"><FiSave /> Save Changes</button>
             </div>
           </form>
+
+          {/* Cloud Sync Section */}
+          <div className="form-section" style={{ marginTop: 24 }}>
+            <h3 className="form-section-title"><FiCloud /> Cloud Sync</h3>
+            {syncInfo ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                {syncInfo.tenantId === 'local-only' || !syncInfo.isConfigured ? (
+                  <>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6b7280' }}>
+                      <FiWifiOff size={16} /> Offline Only — not connected to cloud
+                    </span>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleConnectToCloud}
+                      disabled={resetting}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      <FiWifi /> {resetting ? 'Resetting...' : 'Connect to Cloud'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a' }}>
+                      <FiWifi size={16} /> Connected to Cloud
+                    </span>
+                    <span style={{ color: '#6b7280', fontSize: 13 }}>
+                      Tenant: <strong>{syncInfo.tenantId?.substring(0, 8)}…</strong> &nbsp;|&nbsp;
+                      Branch: <strong>{syncInfo.branchId?.substring(0, 8)}…</strong>
+                    </span>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleConnectToCloud}
+                      disabled={resetting}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      <FiWifiOff /> {resetting ? 'Resetting...' : 'Change / Disconnect'}
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <span style={{ color: '#9ca3af', fontSize: 13 }}>Loading sync status…</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

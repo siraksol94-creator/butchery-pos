@@ -13,14 +13,24 @@ const SYNC_TABLES = [
 
 // ─── POST /api/sync/register ─────────────────────────────────────────────────
 // Called by a new device to get/create a tenant + branch
+// Now requires a valid licenseKey
 router.post('/register', (req, res) => {
   try {
-    const { email, branchName } = req.body;
-    if (!email || !branchName) {
-      return res.status(400).json({ error: 'email and branchName are required' });
+    const { email, branchName, licenseKey } = req.body;
+    if (!email || !branchName || !licenseKey) {
+      return res.status(400).json({ error: 'email, branchName and licenseKey are required' });
     }
 
-    // Find or create tenant by email
+    // ── Validate license ───────────────────────────────────────────────────
+    const license = db.prepare('SELECT * FROM licenses WHERE key = ?').get(licenseKey.trim().toUpperCase());
+    if (!license)           return res.status(403).json({ error: 'Invalid license key.' });
+    if (!license.is_active) return res.status(403).json({ error: 'This license has been deactivated.' });
+    if (license.expires_at < new Date().toISOString())
+      return res.status(403).json({ error: 'This license has expired.' });
+    if (license.tenant_email && license.tenant_email !== email.trim())
+      return res.status(403).json({ error: 'This license key is already registered to a different account.' });
+
+    // ── Find or create tenant by email ────────────────────────────────────
     let tenantRow = db.prepare('SELECT * FROM sync_config WHERE key = ?').get(`tenant:${email}`);
     let tenantId;
     if (tenantRow) {
@@ -30,13 +40,60 @@ router.post('/register', (req, res) => {
       db.prepare('INSERT INTO sync_config (key, value) VALUES (?, ?)').run(`tenant:${email}`, tenantId);
     }
 
-    // Create branch under tenant
+    // ── Check branch limit ────────────────────────────────────────────────
+    const branchCount = db.prepare(
+      "SELECT COUNT(*) AS cnt FROM sync_config WHERE key LIKE ?"
+    ).get(`branch:${tenantId}:%`);
+    if (branchCount.cnt >= license.max_branches) {
+      return res.status(403).json({
+        error: `Branch limit reached. Your license allows ${license.max_branches} branch(es). Contact support to upgrade.`
+      });
+    }
+
+    // ── Create branch ─────────────────────────────────────────────────────
     const branchId = randomUUID();
     db.prepare('INSERT INTO sync_config (key, value) VALUES (?, ?)').run(
       `branch:${tenantId}:${branchId}`, branchName
     );
 
-    res.json({ tenantId, branchId });
+    // ── Activate license (stamp email + tenantId on first use) ────────────
+    if (!license.tenant_email) {
+      db.prepare(
+        "UPDATE licenses SET tenant_email = ?, tenant_id = ?, activated_at = datetime('now') WHERE key = ?"
+      ).run(email.trim(), tenantId, licenseKey.trim().toUpperCase());
+    }
+
+    res.json({ tenantId, branchId, expiresAt: license.expires_at });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── GET /api/sync/license-status ────────────────────────────────────────────
+// Device checks if its license is still valid (called on startup + every 24h)
+router.get('/license-status', (req, res) => {
+  try {
+    const { tenantId } = req.query;
+    if (!tenantId || tenantId === 'local-only') {
+      return res.json({ valid: true, localOnly: true });
+    }
+
+    // Find the license associated with this tenant
+    const license = db.prepare('SELECT * FROM licenses WHERE tenant_id = ?').get(tenantId);
+    if (!license) return res.json({ valid: false, reason: 'License not found' });
+    if (!license.is_active) return res.json({ valid: false, reason: 'License deactivated' });
+
+    const now = new Date();
+    const expiry = new Date(license.expires_at);
+    const daysRemaining = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+    res.json({
+      valid:         daysRemaining > 0,
+      isExpired:     daysRemaining <= 0,
+      daysRemaining: Math.max(0, daysRemaining),
+      expiresAt:     license.expires_at,
+      reason:        daysRemaining <= 0 ? 'License expired' : null,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -169,6 +226,17 @@ router.get('/status', (req, res) => {
       deviceId: cfg.deviceId,
       lastPullTime: cfg.lastPullTime,
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── POST /api/sync/reset ────────────────────────────────────────────────────
+// Clears tenant_id + branch_id so the Setup screen appears on next reload
+router.post('/reset', (req, res) => {
+  try {
+    db.prepare("DELETE FROM sync_config WHERE key IN ('tenant_id','branch_id','last_pull_time')").run();
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -279,6 +279,22 @@ db.exec(`
   );
 `);
 
+// ─── Licenses table ──────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS licenses (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    key          TEXT UNIQUE NOT NULL,
+    tenant_email TEXT,
+    tenant_id    TEXT,
+    max_branches INTEGER NOT NULL DEFAULT 1,
+    expires_at   TEXT NOT NULL,
+    is_active    INTEGER NOT NULL DEFAULT 1,
+    notes        TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    activated_at TEXT
+  );
+`);
+
 // ─── Sync: schema migration (add sync columns to all tables) ─────────────────
 (function runSyncMigration() {
   function addCol(table, col, def) {
@@ -353,6 +369,7 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/cash-reports', require('./routes/cashReport'));
 app.use('/api/stock-adjustments', require('./routes/stockAdjustments'));
 app.use('/api/sync', require('./routes/sync'));
+app.use('/admin', require('./routes/admin'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', timestamp: new Date().toISOString() });

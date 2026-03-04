@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 const Setup = ({ onComplete }) => {
   const [email, setEmail]           = useState('');
   const [branchName, setBranchName] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
@@ -15,7 +16,7 @@ const Setup = ({ onComplete }) => {
       const r1 = await fetch('/api/sync/register', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim(), branchName: branchName.trim() }),
+        body:    JSON.stringify({ email: email.trim(), branchName: branchName.trim(), licenseKey: licenseKey.trim() }),
       });
       const data1 = await r1.json();
       if (!r1.ok) throw new Error(data1.error || 'Registration failed');
@@ -94,7 +95,7 @@ const Setup = ({ onComplete }) => {
             />
           </div>
 
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
               Branch Name
             </label>
@@ -107,6 +108,24 @@ const Setup = ({ onComplete }) => {
               style={{
                 width: '100%', padding: '10px 12px', border: '1px solid #d1d5db',
                 borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+              License Key
+            </label>
+            <input
+              type="text"
+              required
+              value={licenseKey}
+              onChange={e => setLicenseKey(e.target.value.toUpperCase())}
+              placeholder="BUTCH-XXXX-XXXX-XXXX"
+              style={{
+                width: '100%', padding: '10px 12px', border: '1px solid #d1d5db',
+                borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'monospace', letterSpacing: '1px',
               }}
             />
           </div>
