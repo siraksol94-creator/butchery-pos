@@ -1,0 +1,17 @@
+{
+  "name": "butchery-pro",
+  "version": "1.0.0",
+  "description": "Butchery Pro - Management System for butchery shops",
+  "private": true,
+  "scripts": {
+    "start:backend": "cd backend && node server.js",
+    "start:frontend": "cd frontend && react-scripts start",
+    "start:electron": "cd frontend && electron .",
+    "build": "cd frontend && react-scripts build",
+    "dev": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "desktop": "concurrently \"npm run start:backend\" \"cd frontend && electron .\""
+  },
+  "keywords": ["butchery", "pos", "management", "desktop"],
+  "author": "Butchery Pro",
+  "license": "MIT"
+}
