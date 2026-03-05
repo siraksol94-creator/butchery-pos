@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import SyncStatus from './SyncStatus';
 import { FiGrid, FiShoppingCart, FiPackage, FiFileText, FiDollarSign, FiUsers, FiSettings,
          FiChevronDown, FiLogOut, FiSearch, FiBell, FiMenu, FiDownload, FiUpload, FiList,
-         FiBook, FiCreditCard, FiClipboard, FiUser, FiUserPlus, FiSliders, FiGlobe } from 'react-icons/fi';
+         FiBook, FiCreditCard, FiClipboard, FiUser, FiUserPlus, FiSliders, FiGlobe, FiCloud } from 'react-icons/fi';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -248,6 +248,9 @@ const Layout = () => {
                   </div>
                   <div className={`nav-item ${isActive('/settings/users') ? 'active' : ''}`} onClick={() => navigate('/settings/users')}>
                     <FiUsers className="nav-icon" /> <span>{t('users')}</span>
+                  </div>
+                  <div className={`nav-item ${isActive('/setup') ? 'active' : ''}`} onClick={() => navigate('/setup')}>
+                    <FiCloud className="nav-icon" /> <span>Cloud Sync</span>
                   </div>
                 </div>
               )}

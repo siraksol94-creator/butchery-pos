@@ -155,6 +155,12 @@ async function pull() {
 // ─── One full sync cycle ──────────────────────────────────────────────────────
 async function runCycle() {
   try {
+    const { tenantId } = _syncConfig.getConfig();
+    if (!tenantId || tenantId === 'local-only') {
+      _status = { state: 'idle', lastSynced: null, error: null };
+      return;
+    }
+
     _status = { ..._status, state: 'checking' };
 
     const online = await isOnline();

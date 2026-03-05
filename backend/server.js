@@ -324,7 +324,7 @@ db.exec(`
     addCol(t, 'deleted_at','TEXT');
     addCol(t, 'synced',    'INTEGER NOT NULL DEFAULT 0');
     if (!hasUpdatedAt.has(t)) {
-      addCol(t, 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now'))");
+      addCol(t, 'updated_at', 'TEXT');
     }
   }
 })();
@@ -376,12 +376,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve React frontend (Electron mode only — web mode uses Nginx)
-if (process.env.ELECTRON_USER_DATA) {
-  const buildPath = process.env.ELECTRON_PACKAGED === '1'
-    ? path.join(process.resourcesPath, 'frontend', 'build')
-    : path.join(__dirname, '../frontend/build');
-  app.use(express.static(buildPath));
-  app.get('*', (req, res) => res.sendFile(path.join(buildPath, 'index.html')));
+// Try multiple paths in case env var isn't set
+const _frontendBuild = process.env.ELECTRON_FRONTEND_BUILD
+  || (process.resourcesPath ? path.join(process.resourcesPath, 'frontend', 'build') : null)
+  || (process.env.ELECTRON_USER_DATA ? path.join(__dirname, '../frontend/build') : null);
+
+if (_frontendBuild && require('fs').existsSync(_frontendBuild)) {
+  app.use(express.static(_frontendBuild));
+  app.get('*', (req, res) => res.sendFile(path.join(_frontendBuild, 'index.html')));
 }
 
 const PORT = process.env.PORT || 5000;

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const VPS_URL = 'https://butchery.sidanitsolutions.com';
+
 const Setup = ({ onComplete }) => {
   const [email, setEmail]           = useState('');
   const [branchName, setBranchName] = useState('');
@@ -13,7 +15,7 @@ const Setup = ({ onComplete }) => {
     setError('');
     try {
       // Register on VPS — creates/finds tenant + creates branch
-      const r1 = await fetch('/api/sync/register', {
+      const r1 = await fetch(`${VPS_URL}/api/sync/register`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: email.trim(), branchName: branchName.trim(), licenseKey: licenseKey.trim() }),

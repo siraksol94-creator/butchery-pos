@@ -61,6 +61,7 @@
         "to": "backend/node_modules"
       }
     ],
+    "afterPack": "./scripts/afterPack.js",
     "win": {
       "target": "nsis"
     },
