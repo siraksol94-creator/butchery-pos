@@ -1,13 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const VPS_URL = 'https://butchery.sidanitsolutions.com';
 
 const Setup = ({ onComplete }) => {
+  const navigate = useNavigate();
   const [email, setEmail]           = useState('');
   const [branchName, setBranchName] = useState('');
   const [licenseKey, setLicenseKey] = useState('');
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const [alreadyConfigured, setAlreadyConfigured] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/sync/status')
+      .then(r => r.json())
+      .then(data => {
+        if (data.isConfigured && data.tenantId && data.tenantId !== 'local-only') {
+          setAlreadyConfigured(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSetup = async (e) => {
     e.preventDefault();
@@ -32,6 +46,7 @@ const Setup = ({ onComplete }) => {
       if (!r2.ok) throw new Error('Failed to save configuration');
 
       onComplete();
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,6 +63,21 @@ const Setup = ({ onComplete }) => {
     }).catch(() => {});
     onComplete();
   };
+
+  if (alreadyConfigured) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f0f4ff 0%, #fdf2f8 100%)' }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: '48px 40px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+          <h2 style={{ margin: '0 0 8px', color: '#111827' }}>Cloud Sync Active</h2>
+          <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 28 }}>This device is registered and syncing with the cloud.</p>
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '12px 32px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

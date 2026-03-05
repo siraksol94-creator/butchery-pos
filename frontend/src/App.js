@@ -45,7 +45,7 @@ function AppRoutes() {
         setIsConfigured(!!data.isConfigured);
         // Check license if connected to cloud
         if (data.isConfigured && data.tenantId && data.tenantId !== 'local-only') {
-          fetch(`/api/sync/license-status?tenantId=${data.tenantId}`)
+          fetch(`https://butchery.sidanitsolutions.com/api/sync/license-status?tenantId=${data.tenantId}`)
             .then(r => r.json())
             .then(setLicenseStatus)
             .catch(() => {});
