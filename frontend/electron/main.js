@@ -1,10 +1,10 @@
 const { app, BrowserWindow } = require('electron');
+const http = require('http');
 const path = require('path');
 
 let mainWindow;
 
 function startBackend() {
-  // Tell backend where to store the DB and uploads
   process.env.ELECTRON_USER_DATA = app.getPath('userData');
   process.env.ELECTRON_PACKAGED = app.isPackaged ? '1' : '0';
   process.env.PORT = '5000';
@@ -16,12 +16,34 @@ function startBackend() {
   require(backendPath);
 }
 
+// Poll /api/health every 500ms until the backend is ready, then open the window
+function waitForBackend(retries = 30) {
+  http.get('http://localhost:5000/api/health', (res) => {
+    res.resume(); // consume response body to free the socket
+    if (res.statusCode === 200) {
+      createWindow();
+    } else {
+      retry(retries);
+    }
+  }).on('error', () => retry(retries));
+}
+
+function retry(retries) {
+  if (retries <= 0) {
+    createWindow();
+    return;
+  }
+  setTimeout(() => waitForBackend(retries - 1), 500);
+}
+
 function createWindow() {
+  if (mainWindow) return; // already created
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 700,
+    center: true,
     title: 'Butchery Pro - Management System',
     webPreferences: {
       nodeIntegration: false,
@@ -38,8 +60,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   startBackend();
-  // Give Express ~1.5s to start before opening the window
-  setTimeout(createWindow, 1500);
+  waitForBackend(30);
 });
 
 app.on('window-all-closed', () => {
