@@ -99,6 +99,103 @@ router.get('/license-status', (req, res) => {
   }
 });
 
+// ─── GET /api/sync/identity ───────────────────────────────────────────────────
+// Returns business email, branch name, license info for a registered device
+// Query: ?tenantId=...&branchId=...
+router.get('/identity', (req, res) => {
+  try {
+    const { tenantId, branchId } = req.query;
+    if (!tenantId || !branchId) {
+      return res.status(400).json({ error: 'tenantId and branchId are required' });
+    }
+
+    // Find email by tenantId
+    const tenantRow = db.prepare(
+      "SELECT key FROM sync_config WHERE key LIKE 'tenant:%' AND value = ?"
+    ).get(tenantId);
+    const email = tenantRow ? tenantRow.key.replace('tenant:', '') : null;
+
+    // Find branch name
+    const branchRow = db.prepare(
+      'SELECT value FROM sync_config WHERE key = ?'
+    ).get(`branch:${tenantId}:${branchId}`);
+    const branchName = branchRow ? branchRow.value : null;
+
+    // Find license info
+    const license = db.prepare(
+      'SELECT expires_at, is_active, max_branches FROM licenses WHERE tenant_id = ?'
+    ).get(tenantId);
+
+    const now = new Date();
+    const expiry = license ? new Date(license.expires_at) : null;
+    const daysRemaining = expiry ? Math.ceil((expiry - now) / (1000 * 60 * 60 * 24)) : null;
+
+    res.json({
+      email,
+      branchName,
+      expiresAt:     license ? license.expires_at : null,
+      daysRemaining: daysRemaining !== null ? Math.max(0, daysRemaining) : null,
+      isExpired:     daysRemaining !== null ? daysRemaining <= 0 : false,
+      maxBranches:   license ? license.max_branches : null,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── POST /api/sync/join-branch ──────────────────────────────────────────────
+// Called by a new PC joining an EXISTING branch (no new branch created)
+// Body: { branchCode, licenseKey }
+router.post('/join-branch', (req, res) => {
+  try {
+    const { branchCode, licenseKey } = req.body;
+    if (!branchCode || !licenseKey) {
+      return res.status(400).json({ error: 'branchCode and licenseKey are required' });
+    }
+
+    // ── Find branch by code (first 8 chars of branchId, uppercase) ────────
+    const branchRows = db.prepare(
+      "SELECT key FROM sync_config WHERE key LIKE 'branch:%'"
+    ).all();
+
+    let foundTenantId = null;
+    let foundBranchId = null;
+
+    for (const row of branchRows) {
+      // key format: branch:tenantId:branchId
+      const parts = row.key.split(':');
+      if (parts.length !== 3) continue;
+      const bid  = parts[2];
+      const code = bid.replace(/-/g, '').substring(0, 8).toUpperCase();
+      if (code === branchCode.trim().toUpperCase()) {
+        foundTenantId = parts[1];
+        foundBranchId = bid;
+        break;
+      }
+    }
+
+    if (!foundTenantId) {
+      return res.status(404).json({ error: 'Branch not found. Please check your Branch Code.' });
+    }
+
+    // ── Verify license belongs to this tenant ─────────────────────────────
+    const license = db.prepare('SELECT * FROM licenses WHERE key = ?').get(licenseKey.trim().toUpperCase());
+    if (!license)           return res.status(403).json({ error: 'Invalid license key.' });
+    if (!license.is_active) return res.status(403).json({ error: 'This license has been deactivated.' });
+    if (license.expires_at < new Date().toISOString()) {
+      return res.status(403).json({ error: 'This license has expired.' });
+    }
+    if (license.tenant_id !== foundTenantId) {
+      return res.status(403).json({ error: 'This license key does not belong to that branch.' });
+    }
+
+    // ── Return existing IDs — no new branch created ───────────────────────
+    res.json({ tenantId: foundTenantId, branchId: foundBranchId, expiresAt: license.expires_at });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ─── POST /api/sync/push ──────────────────────────────────────────────────────
 // Device pushes local unsynced records to VPS
 // Body: { tenantId, branchId, deviceId, records: { tableName: [...rows] } }
