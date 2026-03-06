@@ -78,7 +78,13 @@ function createWindow() {
   });
 
   mainWindow.loadURL('http://localhost:5000');
-  mainWindow.webContents.on('did-finish-load', () => log('page loaded OK'));
+  mainWindow.webContents.on('did-finish-load', () => {
+    log('page loaded OK');
+    // Always require login on fresh app start — clear saved session
+    mainWindow.webContents.executeJavaScript(
+      'localStorage.removeItem("token"); localStorage.removeItem("user");'
+    ).catch(() => {});
+  });
   mainWindow.webContents.on('did-fail-load', (e, code, desc) => log('page FAILED: ' + code + ' ' + desc));
   mainWindow.on('closed', () => { log('window closed'); mainWindow = null; });
 }
