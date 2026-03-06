@@ -58,15 +58,15 @@ router.post('/', auth, (req, res) => {
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
 
       const info = db.prepare(
-        `INSERT INTO stock_adjustments (adjustment_number, date, product_id, adjustment_type, quantity, reason, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)`
+        `INSERT INTO stock_adjustments (adjustment_number, date, product_id, adjustment_type, quantity, reason, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(adjNum, adjDate, product_id, adjustment_type, qty, reason || null, notes || null, req.user.id,
             randomUUID(), tenantId, branchId, deviceId);
 
       const stockDelta = adjustment_type === 'increase' ? qty : -qty;
       db.prepare(
-        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?, 'store', 'adjustment', ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, 0)`
+        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?, 'store', 'adjustment', ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))`
       ).run(product_id, stockDelta, info.lastInsertRowid, reason || null, req.user.id,
             randomUUID(), tenantId, branchId, deviceId);
 

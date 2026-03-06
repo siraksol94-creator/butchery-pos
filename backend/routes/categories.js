@@ -17,7 +17,7 @@ router.post('/', (req, res) => {
     const { name, color } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      'INSERT INTO categories (name, color, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,?,?,?,?,?,0)'
+      "INSERT INTO categories (name, color, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
     ).run(name, color, randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json(row);

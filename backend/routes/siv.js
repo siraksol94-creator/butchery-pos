@@ -40,25 +40,25 @@ router.post('/', auth, (req, res) => {
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
 
       const info = db.prepare(
-        `INSERT INTO siv (siv_number, date, department, total_items, total_value, notes, created_by, status, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,'Issued',?,?,?,?,0)`
+        `INSERT INTO siv (siv_number, date, department, total_items, total_value, notes, created_by, status, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,'Issued',?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(sivNum, sivDate, department, items.length, totalValue, notes, req.user.id,
             randomUUID(), tenantId, branchId, deviceId);
       const sivId = info.lastInsertRowid;
 
       for (const item of items) {
         db.prepare(
-          'INSERT INTO siv_items (siv_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,?,0)'
+          "INSERT INTO siv_items (siv_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
         ).run(sivId, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
         ).run(item.product_id, 'store', 'siv', -item.quantity, sivId, 'siv', req.user.id,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
         ).run(item.product_id, 'sales', 'siv', item.quantity, sivId, 'siv', req.user.id,
               randomUUID(), tenantId, branchId, deviceId);
       }
@@ -99,14 +99,14 @@ router.put('/:id', auth, (req, res) => {
       db.prepare("DELETE FROM stock_movements WHERE reference_id=? AND reference_type='siv'").run(sivId);
 
       for (const item of items) {
-        db.prepare('INSERT INTO siv_items (siv_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,?,0)').run(
+        db.prepare("INSERT INTO siv_items (siv_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
           sivId, item.product_id, item.quantity, item.unit_price || 0, item.quantity * (item.unit_price || 0),
           randomUUID(), tenantId, branchId, deviceId
         );
-        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,'store','siv',?,?,'siv',?,?,?,?,?,0)`).run(
+        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,'store','siv',?,?,'siv',?,?,?,?,?,0,datetime('now'),datetime('now'))`).run(
           item.product_id, -item.quantity, sivId, req.user.id, randomUUID(), tenantId, branchId, deviceId
         );
-        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,'sales','siv',?,?,'siv',?,?,?,?,?,0)`).run(
+        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,'sales','siv',?,?,'siv',?,?,?,?,?,0,datetime('now'),datetime('now'))`).run(
           item.product_id, item.quantity, sivId, req.user.id, randomUUID(), tenantId, branchId, deviceId
         );
       }

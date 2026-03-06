@@ -41,8 +41,8 @@ router.post('/', auth, adminOnly, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      `INSERT INTO users (first_name, last_name, email, password, phone, role, permissions, sync_id, tenant_id, branch_id, device_id, synced)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+      `INSERT INTO users (first_name, last_name, email, password, phone, role, permissions, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     ).run(firstName, lastName, email, hashedPassword, phone, role, JSON.stringify(permissions || []),
           randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare(

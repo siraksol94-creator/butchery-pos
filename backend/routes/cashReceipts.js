@@ -55,8 +55,8 @@ router.post('/', auth, (req, res) => {
     const receiptNum = syncConfig.generateNumber('CR', 'cash_receipts');
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      `INSERT INTO cash_receipts (receipt_number, received_from, description, payment_method, amount, date, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+      `INSERT INTO cash_receipts (receipt_number, received_from, description, payment_method, amount, date, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     ).run(receiptNum, received_from, description, payment_method, amount, crDate, req.user.id,
           randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare('SELECT * FROM cash_receipts WHERE id = ?').get(info.lastInsertRowid);

@@ -23,8 +23,8 @@ router.post('/', auth, (req, res) => {
 
     const order = db.transaction(() => {
       const info = db.prepare(
-        `INSERT INTO orders (order_number, customer_name, subtotal, tax_amount, total_amount, discount, amount_received, change_amount, payment_method, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`
+        `INSERT INTO orders (order_number, customer_name, subtotal, tax_amount, total_amount, discount, amount_received, change_amount, payment_method, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(orderNum, customer_name, subtotal, tax_amount, total_amount, discount || 0, amount_received || 0, change_amount || 0, payment_method || 'Cash', req.user.id,
             randomUUID(), tenantId, branchId, deviceId);
 
@@ -32,13 +32,13 @@ router.post('/', auth, (req, res) => {
 
       for (const item of items) {
         db.prepare(
-          `INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced)
-           VALUES (?,?,?,?,?,?,?,?,?,?,0)`
+          `INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
         ).run(orderId, item.product_id, item.product_name, item.quantity, item.unit_price, item.total_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
         ).run(item.product_id, 'sales', 'sale', -item.quantity, orderId, 'order', req.user.id,
               randomUUID(), tenantId, branchId, deviceId);
       }
@@ -75,8 +75,8 @@ router.put('/:id/reverse', auth, (req, res) => {
       const items = db.prepare('SELECT * FROM order_items WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL').all(req.params.id);
       for (const item of items) {
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
         ).run(item.product_id, 'sales', 'reverse', item.quantity, parseInt(req.params.id), 'order', req.user.id,
               randomUUID(), tenantId, branchId, deviceId);
       }

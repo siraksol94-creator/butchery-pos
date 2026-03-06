@@ -70,8 +70,8 @@ router.post('/opening-balance', auth, (req, res) => {
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     db.prepare("DELETE FROM cash_book WHERE type = 'opening'").run();
     const info = db.prepare(
-      `INSERT INTO cash_book (date, description, reference, receipt_amount, payment_amount, balance, type, sync_id, tenant_id, branch_id, device_id, synced)
-       VALUES (DATE('now'), 'Opening Balance', 'OB', ?, 0, ?, 'opening', ?, ?, ?, ?, 0)`
+      `INSERT INTO cash_book (date, description, reference, receipt_amount, payment_amount, balance, type, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (DATE('now'), 'Opening Balance', 'OB', ?, 0, ?, 'opening', ?, ?, ?, ?, 0, datetime('now'), datetime('now'))`
     ).run(parseFloat(amount) || 0, parseFloat(amount) || 0, randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare('SELECT * FROM cash_book WHERE id = ?').get(info.lastInsertRowid);
     res.json(row);

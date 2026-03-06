@@ -270,23 +270,30 @@ router.get('/pull', (req, res) => {
     if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
 
     const sinceTs = since || '1970-01-01T00:00:00.000Z';
+    const isInitialPull = sinceTs === '1970-01-01T00:00:00.000Z';
     const result = {};
 
     for (const table of SYNC_TABLES) {
       const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
       const hasTenantId = cols.includes('tenant_id');
       const hasUpdatedAt = cols.includes('updated_at');
+      const hasCreatedAt = cols.includes('created_at');
       if (!hasTenantId) continue;
 
       let rows;
-      if (hasUpdatedAt) {
+      if (isInitialPull) {
+        // First sync — return everything for this tenant regardless of timestamps
+        rows = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ?`).all(tenantId);
+      } else if (hasUpdatedAt) {
         rows = db.prepare(
-          `SELECT * FROM ${table} WHERE tenant_id = ? AND updated_at > ?`
+          `SELECT * FROM ${table} WHERE tenant_id = ? AND COALESCE(updated_at, created_at) > ?`
         ).all(tenantId, sinceTs);
-      } else {
+      } else if (hasCreatedAt) {
         rows = db.prepare(
           `SELECT * FROM ${table} WHERE tenant_id = ? AND created_at > ?`
         ).all(tenantId, sinceTs);
+      } else {
+        rows = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ?`).all(tenantId);
       }
 
       if (rows.length > 0) {

@@ -47,7 +47,7 @@ router.post('/', auth, (req, res) => {
     const { name, type, phone, email, address } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      'INSERT INTO customers (name, type, phone, email, address, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,?,0)'
+      "INSERT INTO customers (name, type, phone, email, address, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
     ).run(name, type || 'Regular', phone, email, address, randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json(row);

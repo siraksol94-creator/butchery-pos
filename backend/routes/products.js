@@ -92,15 +92,15 @@ router.post('/', auth, (req, res) => {
     const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, sync_id, tenant_id, branch_id, device_id, synced)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)`
+      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     ).run(code, name, category_id, unit || 'kg', cost_price, selling_price, current_stock || 0, min_stock || 10,
           randomUUID(), tenantId, branchId, deviceId);
     const newProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
     if (parseFloat(current_stock) > 0) {
       db.prepare(
-        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,?,?,0)`
+        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(newProduct.id, 'store', 'opening', current_stock, 'Opening balance',
             randomUUID(), tenantId, branchId, deviceId);
     }

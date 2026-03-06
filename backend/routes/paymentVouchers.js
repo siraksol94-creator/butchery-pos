@@ -42,8 +42,8 @@ router.post('/', auth, (req, res) => {
     const voucherNum = syncConfig.generateNumber('PV', 'payment_vouchers');
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      `INSERT INTO payment_vouchers (voucher_number, paid_to, description, category, amount, date, paid_from, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)`
+      `INSERT INTO payment_vouchers (voucher_number, paid_to, description, category, amount, date, paid_from, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     ).run(voucherNum, paid_to, description, category, amount,
           date || new Date().toISOString().split('T')[0],
           paid_from || 'Main cashier',

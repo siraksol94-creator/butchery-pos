@@ -84,8 +84,8 @@ router.post('/', auth, (req, res) => {
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
       const info = db.prepare(
         `INSERT INTO cash_reports (date, initial_change, mobile_money, cash, expenses, pending, total,
-          after_change, expected, difference, status, comment, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`
+          after_change, expected, difference, status, comment, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(date, initial_change, mobile_money, cash, expenses, pending, total,
              after_change, expected, difference, status, comment, req.user.id,
              randomUUID(), tenantId, branchId, deviceId);

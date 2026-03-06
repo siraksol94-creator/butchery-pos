@@ -33,7 +33,7 @@ router.post('/', auth, (req, res) => {
     const { name, type, phone, email, address, contact_person } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      'INSERT INTO suppliers (name, type, phone, email, address, contact_person, sync_id, tenant_id, branch_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,?,?,0)'
+      "INSERT INTO suppliers (name, type, phone, email, address, contact_person, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
     ).run(name, type, phone, email, address, contact_person, randomUUID(), tenantId, branchId, deviceId);
     const row = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json(row);
