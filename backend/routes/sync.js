@@ -271,6 +271,8 @@ router.get('/pull', (req, res) => {
 
     const sinceTs = since || '1970-01-01T00:00:00.000Z';
     const isInitialPull = sinceTs === '1970-01-01T00:00:00.000Z';
+    // Normalize to SQLite space format: '2026-03-06T14:50:22.739Z' → '2026-03-06 14:50:22'
+    const sinceSQLite = sinceTs.replace('T', ' ').replace('Z', '').substring(0, 19);
     const result = {};
 
     for (const table of SYNC_TABLES) {
@@ -287,11 +289,11 @@ router.get('/pull', (req, res) => {
       } else if (hasUpdatedAt) {
         rows = db.prepare(
           `SELECT * FROM ${table} WHERE tenant_id = ? AND COALESCE(updated_at, created_at) > ?`
-        ).all(tenantId, sinceTs);
+        ).all(tenantId, sinceSQLite);
       } else if (hasCreatedAt) {
         rows = db.prepare(
           `SELECT * FROM ${table} WHERE tenant_id = ? AND created_at > ?`
-        ).all(tenantId, sinceTs);
+        ).all(tenantId, sinceSQLite);
       } else {
         rows = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ?`).all(tenantId);
       }
