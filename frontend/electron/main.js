@@ -64,6 +64,9 @@ function retry(retries) {
 function createWindow() {
   if (mainWindow) return;
   log('createWindow');
+  // __dirname is always the electron/ folder, packaged or not
+  const preloadPath = path.join(__dirname, 'preload.js');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -74,16 +77,13 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: preloadPath,
     },
   });
 
   mainWindow.loadURL('http://localhost:5000');
   mainWindow.webContents.on('did-finish-load', () => {
     log('page loaded OK');
-    // Always require login on fresh app start — clear saved session
-    mainWindow.webContents.executeJavaScript(
-      'localStorage.removeItem("token"); localStorage.removeItem("user");'
-    ).catch(() => {});
   });
   mainWindow.webContents.on('did-fail-load', (e, code, desc) => log('page FAILED: ' + code + ' ' + desc));
   mainWindow.on('closed', () => { log('window closed'); mainWindow = null; });
