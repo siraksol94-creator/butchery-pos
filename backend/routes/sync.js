@@ -287,8 +287,9 @@ router.get('/pull', (req, res) => {
         // First sync — return everything for this tenant regardless of timestamps
         rows = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ?`).all(tenantId);
       } else if (hasUpdatedAt) {
+        const timeCol = hasCreatedAt ? 'COALESCE(updated_at, created_at)' : 'updated_at';
         rows = db.prepare(
-          `SELECT * FROM ${table} WHERE tenant_id = ? AND COALESCE(updated_at, created_at) > ?`
+          `SELECT * FROM ${table} WHERE tenant_id = ? AND ${timeCol} > ?`
         ).all(tenantId, sinceSQLite);
       } else if (hasCreatedAt) {
         rows = db.prepare(
