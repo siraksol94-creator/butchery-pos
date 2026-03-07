@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { getCategories, createCategory, updateCategory, deleteCategory } from '../services/api';
-import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { getCategories, createCategory, updateCategory, deleteCategory, deleteAllCategories, importCategories } from '../services/api';
+import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag, FiUpload, FiDownload, FiAlertTriangle } from 'react-icons/fi';
 
 const emptyForm = { name: '', color: '#6b7280' };
 
@@ -17,6 +17,45 @@ const Categories = () => {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [importMsg, setImportMsg] = useState('');
+  const [importing, setImporting] = useState(false);
+  const csvInputRef = useRef(null);
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('Delete ALL categories? Products will be uncategorized. This cannot be undone.')) return;
+    try {
+      await deleteAllCategories();
+      await fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete all categories.');
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setImporting(true);
+    setImportMsg('');
+    try {
+      const res = await importCategories(file);
+      setImportMsg(res.data.message);
+      await fetchData();
+    } catch (err) {
+      setImportMsg(err.response?.data?.error || 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDownloadSample = () => {
+    const csv = 'name,color\nBeef,#ef4444\nChicken,#eab308\nPork,#8b5cf6\nLamb,#22c55e\nProcessed,#3b82f6\nBones,#92400e\nOthers,#6b7280\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'sample_categories.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const fetchData = async () => {
     try {
@@ -182,11 +221,30 @@ const Categories = () => {
           <h1>Categories</h1>
           <p>Manage product categories</p>
         </div>
-        <button className="cat-add-btn" onClick={openAdd}>
-          <span className="plus-circle"><FiPlus size={14} /></span>
-          Add Category
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={handleDownloadSample} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 50, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            <FiDownload size={14} /> Sample CSV
+          </button>
+          <button onClick={() => csvInputRef.current?.click()} disabled={importing} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: importing ? '#d1fae5' : 'linear-gradient(135deg,#059669,#10b981)', color: '#fff', border: 'none', borderRadius: 50, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(16,185,129,0.3)' }}>
+            <FiUpload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
+          </button>
+          <input ref={csvInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+          <button onClick={handleDeleteAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', border: 'none', borderRadius: 50, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(220,38,38,0.3)' }}>
+            <FiAlertTriangle size={14} /> Delete All
+          </button>
+          <button className="cat-add-btn" onClick={openAdd}>
+            <span className="plus-circle"><FiPlus size={14} /></span>
+            Add Category
+          </button>
+        </div>
       </div>
+
+      {importMsg && (
+        <div style={{ marginBottom: 16, padding: '10px 16px', background: importMsg.includes('failed') || importMsg.includes('error') ? '#fef2f2' : '#f0fdf4', color: importMsg.includes('failed') || importMsg.includes('error') ? '#dc2626' : '#16a34a', borderRadius: 8, fontSize: 13, fontWeight: 500, border: `1px solid ${importMsg.includes('failed') || importMsg.includes('error') ? '#fecaca' : '#bbf7d0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{importMsg}</span>
+          <button onClick={() => setImportMsg('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}><FiX size={14} /></button>
+        </div>
+      )}
 
       {/* Summary stat */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>

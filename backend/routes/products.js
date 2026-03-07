@@ -188,6 +188,92 @@ router.delete('/:id/image', auth, (req, res) => {
   }
 });
 
+// Delete all products
+router.delete('/all', auth, (req, res) => {
+  try {
+    db.prepare("UPDATE products SET deleted_at=datetime('now'), synced=0 WHERE deleted_at IS NULL").run();
+    res.json({ message: 'All products deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import products from CSV
+const csvUploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').map(l => l.replace(/\r$/, ''));
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const row = {};
+    headers.forEach((h, j) => { row[h] = vals[j] !== undefined ? vals[j] : ''; });
+    rows.push(row);
+  }
+  return rows;
+}
+
+router.post('/import', auth, csvUploadMem.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+    const text = req.file.buffer.toString('utf8');
+    const rows = parseCSV(text);
+    const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+    let imported = 0, skipped = 0;
+    const insertStmt = db.prepare(
+      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+       ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start,
+       sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+    );
+    const checkCodeStmt = db.prepare("SELECT id FROM products WHERE code = ? AND deleted_at IS NULL");
+    const getCatStmt = db.prepare("SELECT id FROM categories WHERE name = ? AND deleted_at IS NULL");
+    const stockStmt = db.prepare(
+      `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+    );
+    db.transaction(() => {
+      for (const row of rows) {
+        const code = row.code?.trim();
+        const name = row.name?.trim();
+        if (!code || !name) { skipped++; continue; }
+        if (checkCodeStmt.get(code)) { skipped++; continue; }
+        let category_id = null;
+        if (row.category?.trim()) {
+          const cat = getCatStmt.get(row.category.trim());
+          category_id = cat ? cat.id : null;
+        }
+        const unit = row.unit?.trim() || 'kg';
+        const cost_price = parseFloat(row.cost_price) || 0;
+        const selling_price = parseFloat(row.selling_price) || 0;
+        const current_stock = parseFloat(row.current_stock) || 0;
+        const min_stock = parseFloat(row.min_stock) || 10;
+        const ub_number_start = parseInt(row.ub_number_start) || 1;
+        const ub_number_length = parseInt(row.ub_number_length) || 6;
+        const ub_quantity_start = parseInt(row.ub_quantity_start) || 7;
+        const ub_quantity_length = parseInt(row.ub_quantity_length) || 0;
+        const ub_decimal_start = parseInt(row.ub_decimal_start) || 2;
+        const info = insertStmt.run(
+          code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+          ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start,
+          randomUUID(), tenantId, branchId, deviceId
+        );
+        if (current_stock > 0) {
+          stockStmt.run(info.lastInsertRowid, 'store', 'opening', current_stock, 'Opening balance (import)',
+            randomUUID(), tenantId, branchId, deviceId);
+        }
+        imported++;
+      }
+    })();
+    res.json({ imported, skipped, message: `Imported ${imported} products. Skipped ${skipped} (duplicates or missing code/name).` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete product
 router.delete('/:id', auth, (req, res) => {
   try {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getProducts, createProduct, updateProduct, updateProductBarcode, deleteProduct, uploadProductImage, deleteProductImage, getSettings, getCategories } from '../services/api';
+import { getProducts, createProduct, updateProduct, updateProductBarcode, deleteProduct, uploadProductImage, deleteProductImage, getSettings, getCategories, deleteAllProducts, importProducts } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { FiSearch, FiPlus, FiEdit2, FiTrash2, FiCamera, FiX, FiZap, FiPrinter } from 'react-icons/fi';
+import { FiSearch, FiPlus, FiEdit2, FiTrash2, FiCamera, FiX, FiZap, FiPrinter, FiUpload, FiDownload, FiAlertTriangle } from 'react-icons/fi';
 import { FaBarcode } from 'react-icons/fa';
 
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
@@ -77,6 +77,45 @@ const ItemDetails = () => {
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({ code: '', name: '', category_id: '', unit: 'kg', cost_price: '', selling_price: '', current_stock: '', min_stock: '' });
   const [formError, setFormError] = useState('');
+  const [importMsg, setImportMsg] = useState('');
+  const [importing, setImporting] = useState(false);
+  const csvInputRef = React.useRef(null);
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('Delete ALL products? This cannot be undone.')) return;
+    try {
+      await deleteAllProducts();
+      await fetchItems();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete all products.');
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setImporting(true);
+    setImportMsg('');
+    try {
+      const res = await importProducts(file);
+      setImportMsg(res.data.message);
+      await fetchItems();
+    } catch (err) {
+      setImportMsg(err.response?.data?.error || 'Import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDownloadSample = () => {
+    const csv = 'code,name,category,unit,cost_price,selling_price,current_stock,min_stock,ub_number_start,ub_number_length,ub_quantity_start,ub_quantity_length,ub_decimal_start\nBF001,Beef Steak,Beef,kg,5.00,8.00,0,10,1,6,7,0,2\nBF002,Beef Ribs,Beef,kg,3.50,6.00,0,5,1,6,7,5,2\nCH001,Whole Chicken,Chicken,pack,3.00,5.00,0,5,1,6,0,0,2\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'sample_products.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -258,15 +297,20 @@ const ItemDetails = () => {
           <h1>{t('itemDetailsTitle')}</h1>
           <p>Manage product information</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={handleDownloadSample} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            <FiDownload size={14} /> Sample CSV
+          </button>
+          <button onClick={() => csvInputRef.current?.click()} disabled={importing} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: importing ? '#d1fae5' : 'linear-gradient(135deg,#059669,#10b981)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(16,185,129,0.3)' }}>
+            <FiUpload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
+          </button>
+          <input ref={csvInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+          <button onClick={handleDeleteAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(220,38,38,0.3)' }}>
+            <FiAlertTriangle size={14} /> Delete All
+          </button>
           <button
             onClick={() => setShowPrintPreview(true)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7,
-              padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb',
-              background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151',
-              transition: 'all 0.15s',
-            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#6b7280'; e.currentTarget.style.background = '#f9fafb'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#fff'; }}
           >
@@ -277,6 +321,13 @@ const ItemDetails = () => {
           </button>
         </div>
       </div>
+
+      {importMsg && (
+        <div style={{ marginBottom: 16, padding: '10px 16px', background: importMsg.includes('failed') || importMsg.includes('error') ? '#fef2f2' : '#f0fdf4', color: importMsg.includes('failed') || importMsg.includes('error') ? '#dc2626' : '#16a34a', borderRadius: 8, fontSize: 13, fontWeight: 500, border: `1px solid ${importMsg.includes('failed') || importMsg.includes('error') ? '#fecaca' : '#bbf7d0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{importMsg}</span>
+          <button onClick={() => setImportMsg('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}><FiX size={14} /></button>
+        </div>
+      )}
 
       <div className="search-input-container">
         <FiSearch style={{ color: '#9ca3af' }} />

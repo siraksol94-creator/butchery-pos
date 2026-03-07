@@ -41,6 +41,12 @@ export const createProduct = (data) => api.post('/products', data);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const updateProductBarcode = (id, data) => api.patch(`/products/${id}/barcode`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
+export const deleteAllProducts = () => api.delete('/products/all');
+export const importProducts = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/products/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+};
 export const uploadProductImage = (id, file) => {
   const form = new FormData();
   form.append('image', file);
@@ -53,6 +59,12 @@ export const getCategories = () => api.get('/categories');
 export const createCategory = (data) => api.post('/categories', data);
 export const updateCategory = (id, data) => api.put(`/categories/${id}`, data);
 export const deleteCategory = (id) => api.delete(`/categories/${id}`);
+export const deleteAllCategories = () => api.delete('/categories/all');
+export const importCategories = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/categories/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+};
 
 // Orders
 export const getOrders = () => api.get('/orders');

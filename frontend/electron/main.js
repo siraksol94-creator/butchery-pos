@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const http = require('http');
 const path = require('path');
 const fs   = require('fs');
@@ -13,6 +13,16 @@ function log(msg) {
 log('main.js loaded');
 
 let mainWindow;
+let _autoUpdater = null;
+
+// IPC: renderer can request a manual update check
+ipcMain.handle('check-for-updates', () => {
+  if (_autoUpdater) {
+    _autoUpdater.checkForUpdates().catch(() => {});
+    return { checking: true };
+  }
+  return { error: 'Auto-updater not available' };
+});
 
 function startBackend() {
   log('startBackend called, isPackaged=' + app.isPackaged);
@@ -98,11 +108,37 @@ app.whenReady().then(() => {
   if (!app.isPackaged) return;
   try {
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
+    _autoUpdater = autoUpdater;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+
+    autoUpdater.on('update-not-available', () => {
+      log('No update available');
+      if (mainWindow) mainWindow.webContents.send('update-not-available');
+    });
 
     autoUpdater.on('update-available', (info) => {
       log('Update available: ' + info.version);
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Available',
+        message: `A new version (${info.version}) of Butchery Pro is available.\nDo you want to download and install it now?`,
+        buttons: ['Install Now', 'Skip'],
+        defaultId: 0,
+        cancelId: 1,
+      }).then(({ response }) => {
+        if (response === 0) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'Downloading Update',
+            message: 'Downloading update in the background...\nThe app will restart automatically when ready.',
+            buttons: ['OK'],
+          });
+          autoUpdater.downloadUpdate();
+        } else {
+          log('Update skipped by user');
+        }
+      });
     });
 
     autoUpdater.on('update-downloaded', (info) => {
@@ -110,11 +146,11 @@ app.whenReady().then(() => {
       dialog.showMessageBox({
         type: 'info',
         title: 'Update Ready',
-        message: `Version ${info.version} has been downloaded.\nThe app will restart to apply the update.`,
-        buttons: ['Restart Now', 'Later'],
+        message: `Version ${info.version} is ready.\nThe app will now restart to apply the update.`,
+        buttons: ['Restart Now'],
         defaultId: 0,
-      }).then(({ response }) => {
-        if (response === 0) autoUpdater.quitAndInstall();
+      }).then(() => {
+        autoUpdater.quitAndInstall();
       });
     });
 

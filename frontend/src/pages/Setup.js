@@ -29,6 +29,7 @@ const Setup = ({ onComplete }) => {
   const [alreadyConfigured, setAlreadyConfigured] = useState(false);
   const [existingBranchCode, setExistingBranchCode] = useState(null);
   const [identity, setIdentity] = useState(null);
+  const [updateStatus, setUpdateStatus]   = useState('idle'); // 'idle' | 'checking' | 'latest'
 
   useEffect(() => {
     fetch('/api/sync/status')
@@ -221,9 +222,43 @@ const Setup = ({ onComplete }) => {
 
           <button
             onClick={() => navigate('/dashboard')}
-            style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+            style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}
           >
             Go to Dashboard
+          </button>
+
+          {/* Check for Updates */}
+          <button
+            onClick={() => {
+              if (!window.electronAPI) return;
+              setUpdateStatus('checking');
+              const handler = () => {
+                setUpdateStatus('latest');
+                window.electronAPI.removeUpdateNotAvailableListener(handler);
+                setTimeout(() => setUpdateStatus('idle'), 4000);
+              };
+              window.electronAPI.onUpdateNotAvailable(handler);
+              window.electronAPI.checkForUpdates().catch(() => {
+                setUpdateStatus('idle');
+                window.electronAPI.removeUpdateNotAvailableListener(handler);
+              });
+              // Reset if no response in 15s
+              setTimeout(() => {
+                setUpdateStatus(s => s === 'checking' ? 'idle' : s);
+                window.electronAPI.removeUpdateNotAvailableListener(handler);
+              }, 15000);
+            }}
+            disabled={updateStatus === 'checking'}
+            style={{
+              width: '100%', padding: '10px', background: 'transparent',
+              color: updateStatus === 'latest' ? '#16a34a' : '#6b7280',
+              border: '1px solid #e5e7eb', borderRadius: 8,
+              fontSize: 14, cursor: updateStatus === 'checking' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {updateStatus === 'checking' ? 'Checking for updates...' :
+             updateStatus === 'latest'   ? '✓ You are on the latest version' :
+             'Check for Updates'}
           </button>
         </div>
       </div>

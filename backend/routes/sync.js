@@ -206,6 +206,7 @@ router.post('/push', (req, res) => {
 
     const conflicts = [];
 
+    db.pragma('foreign_keys = OFF');
     db.transaction(() => {
       for (const [table, rows] of Object.entries(records || {})) {
         if (!SYNC_TABLES.includes(table)) continue;
@@ -260,9 +261,11 @@ router.post('/push', (req, res) => {
         }
       }
     })();
+    db.pragma('foreign_keys = ON');
 
     res.json({ success: true, conflicts });
   } catch (error) {
+    db.pragma('foreign_keys = ON');
     res.status(500).json({ error: error.message });
   }
 });
