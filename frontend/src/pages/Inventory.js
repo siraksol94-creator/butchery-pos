@@ -20,14 +20,17 @@ const Inventory = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All Items');
 
+  const fetchItems = async () => {
+    try {
+      const res = await getStoreInventory();
+      if (res.data?.length > 0) setItems(res.data);
+    } catch (err) { /* keep empty */ }
+  };
+
   useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        const res = await getStoreInventory();
-        if (res.data?.length > 0) setItems(res.data);
-      } catch (err) { /* keep empty */ }
-    };
     fetchItems();
+    window.addEventListener('sync-complete', fetchItems);
+    return () => window.removeEventListener('sync-complete', fetchItems);
   }, []);
 
   const filtered = items.filter(i => {

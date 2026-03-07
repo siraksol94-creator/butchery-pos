@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
 const http = require('http');
 const path = require('path');
 const fs   = require('fs');
@@ -93,6 +93,39 @@ app.whenReady().then(() => {
   log('app ready');
   startBackend();
   waitForBackend(30);
+
+  // ─── Auto-update (only in packaged builds) ─────────────────────────────
+  if (!app.isPackaged) return;
+  try {
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+      log('Update available: ' + info.version);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      log('Update downloaded: ' + info.version);
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: `Version ${info.version} has been downloaded.\nThe app will restart to apply the update.`,
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+
+    autoUpdater.on('error', (err) => {
+      log('AutoUpdater error: ' + err.message);
+    });
+
+    autoUpdater.checkForUpdates();
+  } catch (e) {
+    log('AutoUpdater load error: ' + e.message);
+  }
 });
 
 app.on('window-all-closed', () => {

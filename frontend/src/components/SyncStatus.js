@@ -10,7 +10,7 @@ const STATE_CONFIG = {
   unknown:  { color: '#9ca3af', label: '...' },
 };
 
-const POLL_INTERVAL = 15_000;
+const POLL_INTERVAL = 5_000;
 
 const SyncStatus = () => {
   const [status, setStatus] = useState({ state: 'unknown', lastSynced: null, error: null });
@@ -18,10 +18,17 @@ const SyncStatus = () => {
   const tooltipRef = useRef(null);
 
   useEffect(() => {
+    let prevLastSynced = null;
     const fetch_status = () => {
       fetch('/api/sync/current-status')
         .then(r => r.json())
-        .then(data => setStatus(data))
+        .then(data => {
+          setStatus(data);
+          if (data.lastSynced && prevLastSynced !== null && data.lastSynced !== prevLastSynced) {
+            window.dispatchEvent(new CustomEvent('sync-complete'));
+          }
+          prevLastSynced = data.lastSynced;
+        })
         .catch(() => {});
     };
     fetch_status();

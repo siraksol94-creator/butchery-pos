@@ -333,8 +333,8 @@ const Layout = () => {
               <span className="notification-badge">2</span>
             </button>
             <div className="date-display">
-              <div style={{ fontWeight: 500 }}>{dateStr}</div>
-              <div>{timeStr}</div>
+              <div style={{ fontWeight: 700 }}>{dateStr}</div>
+              <div style={{ fontWeight: 700 }}>{timeStr}</div>
             </div>
           </div>
         </div>

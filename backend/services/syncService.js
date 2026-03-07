@@ -1,6 +1,14 @@
 'use strict';
 const https = require('https');
 const http  = require('http');
+const fs    = require('fs');
+const os    = require('os');
+const path  = require('path');
+
+const logFile = path.join(os.tmpdir(), 'butchery-startup.log');
+function slog(msg) {
+  try { fs.appendFileSync(logFile, `[${new Date().toISOString()}] [Sync] ${msg}\n`); } catch (e) {}
+}
 
 const SYNC_TABLES = [
   'users', 'categories', 'products', 'customers', 'suppliers',
@@ -75,13 +83,15 @@ async function push() {
     } catch { /* table might not exist */ }
   }
 
-  if (Object.keys(records).length === 0) return;
+  if (Object.keys(records).length === 0) { slog('push: nothing to push'); return; }
 
+  slog('push: sending ' + JSON.stringify(Object.entries(records).map(([t,r]) => `${t}:${r.length}`)));
   const result = await request(
     `${VPS_URL}/api/sync/push`,
     'POST',
     { tenantId, branchId, deviceId, records }
   );
+  slog('push: response ' + result.status + ' ' + JSON.stringify(result.body).substring(0, 200));
 
   if (result.status === 200) {
     _db.transaction(() => {
@@ -106,7 +116,13 @@ async function pull() {
     `${VPS_URL}/api/sync/pull?tenantId=${encodeURIComponent(tenantId)}&since=${encodeURIComponent(lastPullTime)}`
   );
 
-  if (result.status !== 200 || !result.body || !result.body.records) return;
+  slog('pull: since=' + lastPullTime + ' status=' + result.status);
+  if (result.status !== 200 || !result.body || !result.body.records) {
+    slog('pull: failed or empty response');
+    return;
+  }
+  const pulled = Object.entries(result.body.records).map(([t,r]) => `${t}:${r.length}`);
+  slog('pull: received ' + (pulled.length ? JSON.stringify(pulled) : 'nothing'));
 
   _db.transaction(() => {
     for (const [table, rows] of Object.entries(result.body.records)) {
@@ -195,6 +211,8 @@ function start(db, syncConfig) {
   setTimeout(runCycle, 8_000);
   _timer = setInterval(runCycle, SYNC_INTERVAL);
 
+  const cfg = syncConfig.getConfig();
+  slog(`started — tenantId=${cfg.tenantId} branchId=${cfg.branchId} VPS=${VPS_URL}`);
   console.log(`[SyncService] Started — interval: ${SYNC_INTERVAL / 1000}s, VPS: ${VPS_URL}`);
 }
 

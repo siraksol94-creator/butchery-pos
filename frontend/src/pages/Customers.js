@@ -23,15 +23,18 @@ const Customers = () => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
 
+  const fetchData = async () => {
+    try {
+      const [statsRes, customersRes] = await Promise.all([getCustomerStats(), getCustomers()]);
+      if (statsRes.data) setStats(statsRes.data);
+      if (customersRes.data?.length > 0) setCustomers(customersRes.data);
+    } catch (err) { /* use defaults */ }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsRes, customersRes] = await Promise.all([getCustomerStats(), getCustomers()]);
-        if (statsRes.data) setStats(statsRes.data);
-        if (customersRes.data?.length > 0) setCustomers(customersRes.data);
-      } catch (err) { /* use defaults */ }
-    };
     fetchData();
+    window.addEventListener('sync-complete', fetchData);
+    return () => window.removeEventListener('sync-complete', fetchData);
   }, []);
 
   const filtered = customers.filter(c => {

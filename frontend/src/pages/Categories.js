@@ -25,7 +25,11 @@ const Categories = () => {
     } catch (err) {}
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    window.addEventListener('sync-complete', fetchData);
+    return () => window.removeEventListener('sync-complete', fetchData);
+  }, []);
 
   const openAdd = () => {
     setEditingId(null);
