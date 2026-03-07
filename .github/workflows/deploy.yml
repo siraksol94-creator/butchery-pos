@@ -21,6 +21,7 @@ jobs:
           source: "backend/"
           target: "/var/www/butchery/"
           rm: false
+          overwrite: true
 
       - name: Install dependencies & restart PM2
         uses: appleboy/ssh-action@v1.0.3
