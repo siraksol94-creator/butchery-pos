@@ -142,7 +142,14 @@ db.exec(`
     product_id  INTEGER REFERENCES products(id),
     quantity    REAL NOT NULL,
     unit_price  REAL NOT NULL,
-    total_price REAL NOT NULL
+    total_price REAL NOT NULL,
+    sync_id     TEXT,
+    tenant_id   INTEGER,
+    branch_id   INTEGER,
+    device_id   TEXT,
+    synced      INTEGER DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS siv (
@@ -164,7 +171,14 @@ db.exec(`
     product_id  INTEGER REFERENCES products(id),
     quantity    REAL NOT NULL,
     unit_price  REAL DEFAULT 0,
-    total_price REAL DEFAULT 0
+    total_price REAL DEFAULT 0,
+    sync_id     TEXT,
+    tenant_id   INTEGER,
+    branch_id   INTEGER,
+    device_id   TEXT,
+    synced      INTEGER DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS stock_movements (
@@ -323,6 +337,7 @@ db.exec(`
     addCol(t, 'device_id', 'TEXT');
     addCol(t, 'deleted_at','TEXT');
     addCol(t, 'synced',    'INTEGER NOT NULL DEFAULT 0');
+    addCol(t, 'created_at', "TEXT NOT NULL DEFAULT (datetime('now'))");
     if (!hasUpdatedAt.has(t)) {
       addCol(t, 'updated_at', 'TEXT');
     }
