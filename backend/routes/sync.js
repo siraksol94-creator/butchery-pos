@@ -373,4 +373,27 @@ router.post('/configure', (req, res) => {
   }
 });
 
+// ─── POST /api/sync/force-resync ─────────────────────────────────────────────
+// Marks all records as unsynced so they get pushed to VPS on next cycle
+router.post('/force-resync', (req, res) => {
+  try {
+    const tables = ['users','categories','products','customers','suppliers',
+      'orders','order_items','grn','grn_items','siv','siv_items',
+      'stock_movements','cash_receipts','payment_vouchers','cash_book',
+      'business_settings','cash_reports','stock_adjustments','daily_actual_balance'];
+    let total = 0;
+    for (const table of tables) {
+      const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+      if (cols.includes('synced')) {
+        const info = db.prepare(`UPDATE ${table} SET synced = 0`).run();
+        total += info.changes;
+      }
+    }
+    db.prepare("DELETE FROM sync_config WHERE key = 'last_pull_time'").run();
+    res.json({ success: true, recordsMarked: total });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

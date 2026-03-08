@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const STATE_CONFIG = {
   synced:   { color: '#22c55e', label: 'Synced' },
@@ -15,7 +15,16 @@ const POLL_INTERVAL = 5_000;
 const SyncStatus = () => {
   const [status, setStatus] = useState({ state: 'unknown', lastSynced: null, error: null });
   const [showTooltip, setShowTooltip] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const tooltipRef = useRef(null);
+
+  const forceResync = useCallback(async () => {
+    setResyncing(true);
+    try {
+      await fetch('/api/sync/force-resync', { method: 'POST' });
+    } catch (e) {}
+    setResyncing(false);
+  }, []);
 
   useEffect(() => {
     let prevLastSynced = null;
@@ -81,6 +90,20 @@ const SyncStatus = () => {
           )}
           {status.state === 'idle' && (
             <div style={{ color: '#d1d5db' }}>Not registered — go to Setup</div>
+          )}
+          {status.state !== 'idle' && (
+            <button
+              onClick={forceResync}
+              disabled={resyncing}
+              style={{
+                marginTop: 6, width: '100%', padding: '3px 0',
+                background: resyncing ? '#374151' : '#3b82f6',
+                color: '#fff', border: 'none', borderRadius: 4,
+                cursor: resyncing ? 'not-allowed' : 'pointer', fontSize: 11,
+              }}
+            >
+              {resyncing ? 'Marking...' : 'Force Resync All'}
+            </button>
           )}
         </div>
       )}
