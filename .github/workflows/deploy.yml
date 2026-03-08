@@ -35,6 +35,46 @@ jobs:
             npm install --production
             pm2 restart all
 
+  deploy-web:
+    name: Build & Deploy Web Frontend
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: frontend
+
+      - name: Build web frontend
+        run: npm run build:web
+        working-directory: frontend
+
+      - name: Copy web build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "frontend/build/"
+          target: "/var/www/butchery/"
+          rm: true
+          overwrite: true
+
+      - name: Reload nginx
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT }}
+          script: nginx -s reload
+
   build-electron:
     name: Build & Publish Electron App
     runs-on: windows-latest

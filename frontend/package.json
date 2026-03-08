@@ -28,6 +28,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "build:web": "cross-env PUBLIC_URL=/ react-scripts build",
     "build:electron": "cross-env REACT_APP_API_URL=http://localhost:5000/api react-scripts build",
     "electron": "electron .",
     "electron:dev": "electron .",
