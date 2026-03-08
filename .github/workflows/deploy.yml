@@ -63,7 +63,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
           source: "frontend/build/"
-          target: "/var/www/butchery-pos/"
+          target: "/var/www/butchery-pos/frontend/"
           rm: true
           overwrite: true
 
