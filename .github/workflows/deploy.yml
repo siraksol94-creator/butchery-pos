@@ -18,8 +18,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
-          source: "backend/"
-          target: "/var/www/butchery/"
+          source: "backend/*"
+          target: "/var/www/butchery-pos/backend/"
           rm: false
           overwrite: true
 
@@ -31,7 +31,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            cd /var/www/butchery/backend
+            cd /var/www/butchery-pos/backend
             npm install --production
             pm2 restart all
 
@@ -62,7 +62,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
           source: "frontend/build/"
-          target: "/var/www/butchery/"
+          target: "/var/www/butchery-pos/"
           rm: true
           overwrite: true
 
