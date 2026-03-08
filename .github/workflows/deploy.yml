@@ -18,8 +18,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
-          source: "backend/*"
-          target: "/var/www/butchery-pos/backend/"
+          source: "backend"
+          target: "/var/www/butchery-pos/"
           rm: false
           overwrite: true
 
@@ -33,7 +33,8 @@ jobs:
           script: |
             cd /var/www/butchery-pos/backend
             npm install --production
-            pm2 restart all
+            pm2 describe butchery-vps > /dev/null 2>&1 && pm2 restart butchery-vps || pm2 start server.js --name butchery-vps
+            pm2 save
 
   deploy-web:
     name: Build & Deploy Web Frontend
