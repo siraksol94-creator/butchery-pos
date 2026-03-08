@@ -338,7 +338,7 @@ db.exec(`
     addCol(t, 'device_id', 'TEXT');
     addCol(t, 'deleted_at','TEXT');
     addCol(t, 'synced',    'INTEGER NOT NULL DEFAULT 0');
-    addCol(t, 'created_at', "TEXT NOT NULL DEFAULT (datetime('now'))");
+    addCol(t, 'created_at', 'TEXT');
     if (!hasUpdatedAt.has(t)) {
       addCol(t, 'updated_at', 'TEXT');
     }
@@ -401,6 +401,15 @@ if (_frontendBuild && require('fs').existsSync(_frontendBuild)) {
   app.use(express.static(_frontendBuild));
   app.get('*', (req, res) => res.sendFile(path.join(_frontendBuild, 'index.html')));
 }
+
+// Global error handler — prevents crashes on PayloadTooLarge and other Express errors
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
