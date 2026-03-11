@@ -54,15 +54,23 @@ router.post('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-router.put('/:id', auth, (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, role, permissions, status } = req.body;
-    db.prepare(
-      `UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, permissions=?, status=?, updated_at=datetime('now'), synced=0
-       WHERE id=?`
-    ).run(firstName, lastName, email, phone, role, JSON.stringify(permissions || []), status, req.params.id);
+    const { firstName, lastName, email, phone, role, permissions, status, password } = req.body;
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      db.prepare(
+        `UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, permissions=?, status=?, password=?, updated_at=datetime('now'), synced=0
+         WHERE id=?`
+      ).run(firstName, lastName, email, phone, role, JSON.stringify(permissions || []), status, hashedPassword, req.params.id);
+    } else {
+      db.prepare(
+        `UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, permissions=?, status=?, updated_at=datetime('now'), synced=0
+         WHERE id=?`
+      ).run(firstName, lastName, email, phone, role, JSON.stringify(permissions || []), status, req.params.id);
+    }
     const row = db.prepare(
-      'SELECT id, first_name, last_name, email, role, permissions, status FROM users WHERE id = ?'
+      'SELECT id, first_name, last_name, email, role, permissions, status, phone FROM users WHERE id = ?'
     ).get(req.params.id);
     res.json(parsePerms(row));
   } catch (error) {

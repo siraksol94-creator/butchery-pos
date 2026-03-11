@@ -13,6 +13,7 @@ function log(msg) {
 log('main.js loaded');
 
 let mainWindow;
+let splashWindow;
 let _autoUpdater = null;
 
 // IPC: renderer can request a manual update check
@@ -85,10 +86,24 @@ function retry(retries) {
   setTimeout(() => waitForBackend(retries - 1), 500);
 }
 
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 420,
+    height: 320,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    webPreferences: { nodeIntegration: false },
+  });
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+  splashWindow.on('closed', () => { splashWindow = null; });
+}
+
 function createWindow() {
   if (mainWindow) return;
   log('createWindow');
-  // __dirname is always the electron/ folder, packaged or not
   const preloadPath = path.join(__dirname, 'preload.js');
 
   mainWindow = new BrowserWindow({
@@ -97,6 +112,7 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 700,
     center: true,
+    show: false,
     title: 'Butchery Pro - Management System',
     webPreferences: {
       nodeIntegration: false,
@@ -108,13 +124,20 @@ function createWindow() {
   mainWindow.loadURL('http://localhost:5000');
   mainWindow.webContents.on('did-finish-load', () => {
     log('page loaded OK');
+    mainWindow.show();
+    if (splashWindow) splashWindow.close();
   });
-  mainWindow.webContents.on('did-fail-load', (e, code, desc) => log('page FAILED: ' + code + ' ' + desc));
+  mainWindow.webContents.on('did-fail-load', (e, code, desc) => {
+    log('page FAILED: ' + code + ' ' + desc);
+    mainWindow.show();
+    if (splashWindow) splashWindow.close();
+  });
   mainWindow.on('closed', () => { log('window closed'); mainWindow = null; });
 }
 
 app.whenReady().then(() => {
   log('app ready');
+  createSplashWindow();
   startBackend();
   waitForBackend(30);
 

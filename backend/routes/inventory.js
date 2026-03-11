@@ -7,34 +7,45 @@ const { randomUUID } = require('crypto');
 const balanceSQL = `
   SELECT
     p.id, p.code, p.name, p.unit, p.cost_price, p.selling_price, p.min_stock, p.status, p.image_url,
+    p.product_type,
     p.ub_number_start, p.ub_number_length, p.ub_quantity_start, p.ub_quantity_length, p.ub_decimal_start,
     c.name AS category_name, c.color AS category_color,
     COALESCE(store_agg.store_balance, 0) AS store_balance,
     COALESCE(sales_agg.sales_balance, 0) AS sales_balance,
     COALESCE(opening_agg.opening_balance, 0) AS opening_balance,
     COALESCE(grn_agg.total_in, 0) AS total_in,
+    COALESCE(prod_out_agg.total_prod_out, 0) AS total_prod_out,
+    COALESCE(prod_in_agg.total_prod_in, 0) AS total_prod_in,
     COALESCE(siv_agg.total_out, 0) AS total_out
   FROM products p
   LEFT JOIN categories c ON p.category_id = c.id
   LEFT JOIN (
     SELECT product_id, SUM(quantity) AS store_balance
-    FROM stock_movements WHERE location = 'store' GROUP BY product_id
+    FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
   ) store_agg ON store_agg.product_id = p.id
   LEFT JOIN (
     SELECT product_id, SUM(quantity) AS sales_balance
-    FROM stock_movements WHERE location = 'sales' GROUP BY product_id
+    FROM stock_movements WHERE location = 'sales' AND deleted_at IS NULL GROUP BY product_id
   ) sales_agg ON sales_agg.product_id = p.id
   LEFT JOIN (
     SELECT product_id, SUM(quantity) AS opening_balance
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' GROUP BY product_id
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL GROUP BY product_id
   ) opening_agg ON opening_agg.product_id = p.id
   LEFT JOIN (
     SELECT product_id, SUM(quantity) AS total_in
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'grn' GROUP BY product_id
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'grn' AND deleted_at IS NULL GROUP BY product_id
   ) grn_agg ON grn_agg.product_id = p.id
   LEFT JOIN (
+    SELECT product_id, SUM(quantity) AS total_prod_out
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_output' AND deleted_at IS NULL GROUP BY product_id
+  ) prod_out_agg ON prod_out_agg.product_id = p.id
+  LEFT JOIN (
+    SELECT product_id, ABS(SUM(quantity)) AS total_prod_in
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_input' AND deleted_at IS NULL GROUP BY product_id
+  ) prod_in_agg ON prod_in_agg.product_id = p.id
+  LEFT JOIN (
     SELECT product_id, ABS(SUM(quantity)) AS total_out
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' GROUP BY product_id
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' AND deleted_at IS NULL GROUP BY product_id
   ) siv_agg ON siv_agg.product_id = p.id
   WHERE p.deleted_at IS NULL
   ORDER BY p.name
@@ -55,16 +66,20 @@ router.get('/store', (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT
-        p.id, p.code, p.name, p.unit, p.cost_price, p.selling_price, p.min_stock, p.status,
+        p.id, p.code, p.name, p.unit, p.cost_price, p.selling_price, p.min_stock, p.status, p.product_type,
         c.name AS category_name, c.color AS category_color,
         COALESCE(store_agg.store_balance, 0) AS store_balance,
         COALESCE(opening_agg.opening_balance, 0) AS opening_balance,
-        COALESCE(grn_agg.total_in, 0) AS total_in,
-        COALESCE(siv_agg.total_out, 0) AS total_out,
+        COALESCE(mvt_agg.total_in, 0) AS total_in,
+        COALESCE(mvt_agg.total_out, 0) AS total_out,
         CASE WHEN COALESCE(grn_cost.total_qty, 0) > 0
           THEN ROUND(COALESCE(grn_cost.total_cost, 0) / grn_cost.total_qty, 2)
           ELSE p.cost_price
-        END AS avg_cost_price
+        END AS avg_cost_price,
+        CASE WHEN COALESCE(reprocess_agg.available_for_reprocessing, 0) < 0
+          THEN 0
+          ELSE COALESCE(reprocess_agg.available_for_reprocessing, 0)
+        END AS available_for_reprocessing
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN (
@@ -76,17 +91,22 @@ router.get('/store', (req, res) => {
         FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' GROUP BY product_id
       ) opening_agg ON opening_agg.product_id = p.id
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS total_in
-        FROM stock_movements WHERE location = 'store' AND movement_type = 'grn' GROUP BY product_id
-      ) grn_agg ON grn_agg.product_id = p.id
-      LEFT JOIN (
-        SELECT product_id, ABS(SUM(quantity)) AS total_out
-        FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' GROUP BY product_id
-      ) siv_agg ON siv_agg.product_id = p.id
+        SELECT product_id,
+          SUM(CASE WHEN quantity > 0 AND movement_type != 'opening' THEN quantity ELSE 0 END) AS total_in,
+          ABS(SUM(CASE WHEN quantity < 0 THEN quantity ELSE 0 END)) AS total_out
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
+      ) mvt_agg ON mvt_agg.product_id = p.id
       LEFT JOIN (
         SELECT product_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_cost
         FROM grn_items GROUP BY product_id
       ) grn_cost ON grn_cost.product_id = p.id
+      LEFT JOIN (
+        SELECT product_id,
+          SUM(CASE WHEN movement_type = 'sales_return' THEN quantity ELSE 0 END) +
+          SUM(CASE WHEN movement_type = 'production_input' THEN quantity ELSE 0 END)
+          AS available_for_reprocessing
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
+      ) reprocess_agg ON reprocess_agg.product_id = p.id
       WHERE p.deleted_at IS NULL
       ORDER BY p.name
     `).all();
@@ -253,16 +273,17 @@ router.get('/bin-card', (req, res) => {
         date(sm.created_at)   AS date,
         sm.movement_type,
         sm.reference_type,
-        COALESCE(g.grn_number, sv.siv_number, sm.movement_type) AS reference,
+        COALESCE(g.grn_number, sv.siv_number, pr.production_number, sm.movement_type) AS reference,
         sm.quantity,
         @opening_balance + SUM(sm.quantity) OVER (
           ORDER BY sm.created_at ASC, sm.id ASC
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS balance
       FROM stock_movements sm
-      LEFT JOIN grn g  ON g.id  = sm.reference_id AND sm.reference_type = 'grn'
-      LEFT JOIN siv sv ON sv.id = sm.reference_id AND sm.reference_type = 'siv'
-      WHERE sm.product_id = @product_id AND sm.location = 'store'
+      LEFT JOIN grn g        ON g.id  = sm.reference_id AND sm.reference_type = 'grn'
+      LEFT JOIN siv sv       ON sv.id = sm.reference_id AND sm.reference_type = 'siv'
+      LEFT JOIN production pr ON pr.id = sm.reference_id AND sm.reference_type = 'production'
+      WHERE sm.product_id = @product_id AND sm.location = 'store' AND sm.deleted_at IS NULL
     `;
     if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }
     if (to)   { sql += " AND sm.created_at < date(@to, '+1 day')"; namedParams.to = to; }

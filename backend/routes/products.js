@@ -89,13 +89,13 @@ router.get('/:id', (req, res) => {
 // Create product
 router.post('/', auth, (req, res) => {
   try {
-    const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock } = req.body;
+    const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, product_type } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const info = db.prepare(
-      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, product_type, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     ).run(code, name, category_id, unit || 'kg', cost_price, selling_price, current_stock || 0, min_stock || 10,
-          randomUUID(), tenantId, branchId, deviceId);
+          product_type || 'sellable', randomUUID(), tenantId, branchId, deviceId);
     const newProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
     if (parseFloat(current_stock) > 0) {
       db.prepare(
@@ -114,13 +114,14 @@ router.post('/', auth, (req, res) => {
 router.put('/:id', auth, (req, res) => {
   try {
     const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
-            ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start } = req.body;
+            product_type, ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start } = req.body;
     db.prepare(
       `UPDATE products SET code=?, name=?, category_id=?, unit=?, cost_price=?, selling_price=?,
-       current_stock=?, min_stock=?,
+       current_stock=?, min_stock=?, product_type=?,
        ub_number_start=?, ub_number_length=?, ub_quantity_start=?, ub_quantity_length=?, ub_decimal_start=?,
        updated_at=datetime('now'), synced=0 WHERE id=?`
     ).run(code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+          product_type || 'sellable',
           ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
           req.params.id);
     const row = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);

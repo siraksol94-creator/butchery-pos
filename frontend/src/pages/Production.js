@@ -34,10 +34,13 @@ const Production = () => {
   const fetchAll = async () => {
     try {
       const [eRes, sRes, pRes] = await Promise.all([getProductions(), getProductionStats(), getStoreInventory()]);
-      setEntries(eRes.data || []);
+      console.log('[Production] fetchAll eRes.data:', eRes.data, 'sRes.data:', sRes.data);
+      setEntries(Array.isArray(eRes.data) ? eRes.data : []);
       setStats(sRes.data || { total: 0, thisMonth: 0 });
-      setProducts(pRes.data || []);
-    } catch {}
+      setProducts(Array.isArray(pRes.data) ? pRes.data : []);
+    } catch (err) {
+      console.error('[Production] fetchAll error:', err);
+    }
     setLoading(false);
   };
 

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../config/database');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
+const bcrypt = require('bcrypt');
 
 // All tables that participate in sync
 const SYNC_TABLES = [
@@ -391,6 +392,92 @@ router.post('/force-resync', (req, res) => {
     }
     db.prepare("DELETE FROM sync_config WHERE key = 'last_pull_time'").run();
     res.json({ success: true, recordsMarked: total });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── POST /api/sync/wipe-tenant ──────────────────────────────────────────────
+// Called by VPS: hard-deletes all data records for a given tenantId
+router.post('/wipe-tenant', (req, res) => {
+  try {
+    const { tenantId } = req.body;
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+
+    const dataTables = [
+      'order_items', 'orders',
+      'grn_items', 'grn',
+      'siv_items', 'siv',
+      'stock_movements', 'stock_adjustments',
+      'cash_receipts', 'payment_vouchers', 'cash_book', 'cash_reports',
+      'daily_actual_balance',
+      'production_outputs', 'production_inputs', 'production',
+      'sales_return_items', 'sales_returns',
+      'products', 'categories',
+      'customers', 'suppliers',
+    ];
+
+    for (const table of dataTables) {
+      try { db.prepare(`DELETE FROM ${table} WHERE tenant_id = ?`).run(tenantId); } catch (_) {}
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── POST /api/sync/factory-reset ────────────────────────────────────────────
+// Wipes all local data. includeSettings=true also clears business_settings.
+router.post('/factory-reset', async (req, res) => {
+  try {
+    const { includeSettings } = req.body;
+
+    // Get tenantId before clearing config, so we can wipe VPS too
+    const tenantRow = db.prepare("SELECT value FROM sync_config WHERE key='tenant_id'").get();
+    const tenantId = tenantRow?.value;
+
+    const dataTables = [
+      'order_items', 'orders',
+      'grn_items', 'grn',
+      'siv_items', 'siv',
+      'stock_movements', 'stock_adjustments',
+      'cash_receipts', 'payment_vouchers', 'cash_book', 'cash_reports',
+      'daily_actual_balance',
+      'production_outputs', 'production_inputs', 'production',
+      'sales_return_items', 'sales_returns',
+      'products', 'categories',
+      'customers', 'suppliers',
+    ];
+
+    for (const table of dataTables) {
+      db.prepare(`DELETE FROM ${table}`).run();
+    }
+
+    if (includeSettings) {
+      db.prepare('DELETE FROM business_settings').run();
+    }
+
+    // Always reset sync config so Setup screen appears
+    db.prepare("DELETE FROM sync_config WHERE key IN ('tenant_id','branch_id','last_pull_time')").run();
+
+    // Reset admin password back to default
+    const defaultHash = await bcrypt.hash('admin123', 10);
+    db.prepare("UPDATE users SET password=?, updated_at=datetime('now') WHERE email='admin'").run(defaultHash);
+
+    // Wipe VPS data for this tenant before responding (so sync can't pull data back)
+    if (tenantId && tenantId !== 'local-only') {
+      try {
+        await fetch('https://butchery.sidanitsolutions.com/api/sync/wipe-tenant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId }),
+          signal: AbortSignal.timeout(8000),
+        });
+      } catch (_) {} // offline or VPS down — local reset still succeeds
+    }
+
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

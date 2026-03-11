@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Butchery Pro</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      color: #ffffff;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      user-select: none;
+      -webkit-app-region: drag;
+      overflow: hidden;
+    }
+
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #e8b84b;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      letter-spacing: 4px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+
+    .loader-track {
+      width: 220px;
+      height: 3px;
+      background: #2a2a3e;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .loader-bar {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #e8b84b, #f0d080);
+      border-radius: 2px;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #555;
+      letter-spacing: 1px;
+    }
+
+    .version {
+      position: absolute;
+      bottom: 20px;
+      font-size: 11px;
+      color: #333;
+      letter-spacing: 1px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
+    @keyframes slide {
+      0%   { transform: translateX(-100%); }
+      50%  { transform: translateX(150%); }
+      100% { transform: translateX(150%); }
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">🥩</div>
+  <div class="title">Butchery Pro</div>
+  <div class="subtitle">Management System</div>
+  <div class="loader-track">
+    <div class="loader-bar"></div>
+  </div>
+  <div class="status">Starting...</div>
+  <div class="version">v1.2.3</div>
+</body>
+</html>

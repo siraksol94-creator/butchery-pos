@@ -310,6 +310,62 @@ db.exec(`
   );
 `);
 
+// ─── Production tables ────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS production (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    production_number TEXT UNIQUE NOT NULL,
+    date              TEXT NOT NULL,
+    notes             TEXT,
+    total_input_cost  REAL DEFAULT 0,
+    cost_per_kg       REAL DEFAULT 0,
+    total_output_qty  REAL DEFAULT 0,
+    created_by        INTEGER REFERENCES users(id),
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS production_inputs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    production_id INTEGER NOT NULL REFERENCES production(id),
+    product_id    INTEGER REFERENCES products(id),
+    quantity      REAL NOT NULL,
+    unit_cost     REAL NOT NULL DEFAULT 0,
+    total_cost    REAL NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS production_outputs (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    production_id            INTEGER NOT NULL REFERENCES production(id),
+    product_id               INTEGER REFERENCES products(id),
+    quantity                 REAL NOT NULL,
+    allocated_cost_per_unit  REAL NOT NULL DEFAULT 0,
+    total_allocated_cost     REAL NOT NULL DEFAULT 0,
+    created_at               TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at               TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS sales_returns (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_number TEXT UNIQUE NOT NULL,
+    date          TEXT NOT NULL,
+    notes         TEXT,
+    total_items   INTEGER DEFAULT 0,
+    created_by    INTEGER REFERENCES users(id),
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS sales_return_items (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id  INTEGER REFERENCES sales_returns(id),
+    product_id INTEGER REFERENCES products(id),
+    quantity   REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // ─── Sync: schema migration (add sync columns to all tables) ─────────────────
 (function runSyncMigration() {
   function addCol(table, col, def) {
@@ -319,11 +375,16 @@ db.exec(`
     }
   }
 
+  // Add product_type to products
+  addCol('products', 'product_type', "TEXT NOT NULL DEFAULT 'finished'");
+
   const allTables = [
     'users', 'categories', 'products', 'customers', 'suppliers',
     'orders', 'order_items', 'grn', 'grn_items', 'siv', 'siv_items',
     'stock_movements', 'cash_receipts', 'payment_vouchers', 'cash_book',
     'business_settings', 'cash_reports', 'stock_adjustments', 'daily_actual_balance',
+    'production', 'production_inputs', 'production_outputs',
+    'sales_returns', 'sales_return_items',
   ];
 
   // Tables that already have updated_at — skip them
@@ -353,14 +414,21 @@ const syncService = require('./services/syncService');
 syncService.start(db, syncConfig);
 
 // ─── Default admin user ─────────────────────────────────────────────────────
+// Migrate old email-based admin to simple username
+const oldAdmin = db.prepare("SELECT id FROM users WHERE email = 'admin@butchery.com'").get();
+if (oldAdmin) {
+  db.prepare("UPDATE users SET email = 'admin' WHERE id = ?").run(oldAdmin.id);
+  console.log('Migrated admin@butchery.com → admin');
+}
+
 const userCount = db.prepare('SELECT COUNT(*) AS cnt FROM users').get();
 if (userCount.cnt === 0) {
   const hashed = bcrypt.hashSync('admin123', 10);
   db.prepare(
     `INSERT INTO users (first_name, last_name, email, password, role, permissions)
      VALUES (?, ?, ?, ?, ?, ?)`
-  ).run('Admin', 'User', 'admin@butchery.com', hashed, 'Administrator', '[]');
-  console.log('Default admin created  →  admin@butchery.com / admin123');
+  ).run('Admin', 'User', 'admin', hashed, 'Administrator', '[]');
+  console.log('Default admin created  →  admin / admin123');
 }
 
 console.log('Database schema ready');
@@ -384,6 +452,8 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/cash-reports', require('./routes/cashReport'));
 app.use('/api/stock-adjustments', require('./routes/stockAdjustments'));
+app.use('/api/production', require('./routes/production'));
+app.use('/api/sales-returns', require('./routes/salesReturns'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/admin', require('./routes/admin'));
 
