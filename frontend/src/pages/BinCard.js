@@ -231,20 +231,14 @@ const BinCard = () => {
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
-
-              {/* Totals — pinned at the bottom of the card, always visible */}
-              <div style={{ borderTop: '2px solid #166534', background: '#f0fdf4', flexShrink: 0 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: '11px 14px', fontWeight: 700, color: '#166534', fontSize: 12, textTransform: 'uppercase' }}>Totals</td>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid #166534', background: '#f0fdf4' }}>
+                      <td colSpan={4} style={{ padding: '11px 14px', fontWeight: 700, color: '#166534', fontSize: 12, textTransform: 'uppercase' }}>Totals</td>
                       <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 800, color: '#166534', fontFamily: 'monospace' }}>{totalIn.toFixed(2)}</td>
                       <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>{totalOut.toFixed(2)}</td>
                       <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 800, color: '#111827', fontFamily: 'monospace' }}>{closeBal.toFixed(2)}</td>
                     </tr>
-                  </tbody>
+                  </tfoot>
                 </table>
               </div>
             </>

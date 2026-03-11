@@ -85,7 +85,7 @@ const GRN = () => {
     const fetchFormData = async () => {
       try {
         const [prodRes, supRes] = await Promise.all([getProducts(), getSuppliers()]);
-        if (prodRes.data?.length > 0) setProducts(prodRes.data);
+        if (prodRes.data?.length > 0) setProducts(prodRes.data.filter(p => p.product_type !== 'finished'));
         if (supRes.data?.length > 0)  setSuppliers(supRes.data);
       } catch (err) {}
     };

@@ -230,14 +230,14 @@ const ItemDetails = () => {
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ code: '', name: '', category_id: '', unit: 'kg', cost_price: '', selling_price: '', current_stock: '', min_stock: '' });
+    setForm({ code: '', name: '', category_id: '', unit: 'kg', cost_price: '', selling_price: '', current_stock: '', min_stock: '', product_type: 'sellable' });
     setImageFile(null); setImagePreview(null); setFormError('');
     setShowModal(true);
   };
 
   const openEdit = (item) => {
     setEditItem(item);
-    setForm({ code: item.code, name: item.name, category_id: item.category_id, unit: item.unit, cost_price: item.cost_price, selling_price: item.selling_price, current_stock: item.current_stock, min_stock: item.min_stock });
+    setForm({ code: item.code, name: item.name, category_id: item.category_id, unit: item.unit, cost_price: item.cost_price, selling_price: item.selling_price, current_stock: item.current_stock, min_stock: item.min_stock, product_type: item.product_type || 'finished' });
     setImageFile(null);
     setImagePreview(item.image_url ? `${API_BASE}${item.image_url}` : null);
     setFormError('');
@@ -489,6 +489,25 @@ const ItemDetails = () => {
                   <input type="number" min="0" step="0.01" value={form.min_stock}
                     onChange={e => setForm({ ...form, min_stock: e.target.value })}
                     onBlur={e => { if (e.target.value !== '' && parseFloat(e.target.value) < 0) setForm(f => ({ ...f, min_stock: '0' })); }} />
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: 4 }}>
+                <label>Product Type</label>
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  {[
+                    { val: 'sellable',     label: 'Sellable',          desc: 'Bought via GRN — appears in POS & SIV',          activeColor: '#16a34a', activeBg: '#f0fdf4', activeBorder: '#86efac' },
+                    { val: 'finished',     label: 'Finished Product',  desc: 'Produced via Production — appears in POS & SIV', activeColor: '#2563eb', activeBg: '#eff6ff', activeBorder: '#93c5fd' },
+                    { val: 'raw_material', label: 'Raw Material',      desc: 'Not for sale — used in Production inputs only',  activeColor: '#b45309', activeBg: '#fffbeb', activeBorder: '#fcd34d' },
+                  ].map(opt => (
+                    <div
+                      key={opt.val}
+                      onClick={() => setForm(f => ({ ...f, product_type: opt.val }))}
+                      style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `2px solid ${form.product_type === opt.val ? opt.activeBorder : '#e5e7eb'}`, background: form.product_type === opt.val ? opt.activeBg : '#fafafa', cursor: 'pointer' }}
+                    >
+                      <div style={{ fontWeight: 700, fontSize: 13, color: form.product_type === opt.val ? opt.activeColor : '#374151' }}>{opt.label}</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{opt.desc}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
               <div className="form-group" style={{ marginTop: 4 }}>

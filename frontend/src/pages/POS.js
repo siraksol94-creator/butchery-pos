@@ -19,15 +19,11 @@ const defaultProducts = [
   { id: 12, name: 'Beef Burgers', category_name: 'Processed', selling_price: 15, current_stock: 40, unit: 'pack' },
 ];
 
-const categories = ['All', 'Beef', 'Chicken', 'Pork', 'Lamb', 'Processed'];
-
-const getCategoryClass = (cat) => {
-  const map = { 'Beef': 'category-beef', 'Chicken': 'category-chicken', 'Pork': 'category-pork', 'Lamb': 'category-lamb', 'Processed': 'category-processed' };
-  return map[cat] || 'badge-gray';
-};
+const getCategoryClass = () => 'badge-gray';
 
 const POS = () => {
   const [products, setProducts] = useState(defaultProducts);
+  const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [search, setSearch] = useState('');
@@ -35,8 +31,10 @@ const POS = () => {
   const [discount, setDiscount] = useState(0);
   const [amountReceived, setAmountReceived] = useState('');
   const [businessName, setBusinessName] = useState('Premium Butchery Services');
+  const [businessPhone, setBusinessPhone] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+  const [showChangeBanner, setShowChangeBanner] = useState(false);
   const [barcodeMsg, setBarcodeMsg] = useState(null); // { text, type: 'error'|'success' }
   const [scannerActive, setScannerActive] = useState(true);
   const [showNumpad, setShowNumpad] = useState(false);
@@ -187,11 +185,17 @@ const POS = () => {
     const fetchData = async () => {
       try {
         const res = await getInventory();
-        if (res.data?.length > 0) setProducts(res.data);
+        if (res.data?.length > 0) {
+          const sellable = res.data.filter(p => p.product_type !== 'raw_material');
+          setProducts(sellable);
+          const unique = [...new Set(sellable.map(p => p.category_name).filter(Boolean))].sort();
+          setCategories(unique);
+        }
       } catch (err) { /* use defaults */ }
       try {
         const res = await getSettings();
-        if (res.data?.business_name) setBusinessName(res.data.business_name);
+        if (res.data?.business?.business_name) setBusinessName(res.data.business.business_name);
+        if (res.data?.business?.business_phone) setBusinessPhone(res.data.business.business_phone);
       } catch (err) { /* use default */ }
     };
     fetchData();
@@ -290,6 +294,7 @@ const POS = () => {
       setDiscount(0);
       setAmountReceived('');
       setReceiptData(rData);
+      setShowChangeBanner(false);
       setShowReceipt(true);
 
       // Refresh stock balances
@@ -303,7 +308,7 @@ const POS = () => {
     }
   };
 
-  const printThermalReceipt = (data, bName) => {
+  const printThermalReceipt = (data, bName, bPhone) => {
     const div42eq = '='.repeat(42);
     const div42da = '-'.repeat(42);
 
@@ -312,17 +317,17 @@ const POS = () => {
       <tr>
         <td></td>
         <td style="text-align:center;">${item.quantity}&nbsp;${item.unit || ''}</td>
-        <td style="text-align:right;">$${item.unit_price.toFixed(2)}</td>
-        <td style="text-align:right;">$${item.total_price.toFixed(2)}</td>
+        <td style="text-align:right;">K${item.unit_price.toFixed(2)}</td>
+        <td style="text-align:right;">K${item.total_price.toFixed(2)}</td>
       </tr>`).join('');
 
     const discountRow = data.discount > 0
-      ? `<tr><td>Discount</td><td></td><td></td><td style="text-align:right;">-$${data.discount.toFixed(2)}</td></tr>`
+      ? `<tr><td>Discount</td><td></td><td></td><td style="text-align:right;">-K${data.discount.toFixed(2)}</td></tr>`
       : '';
 
     const changeRow = data.amountReceived >= data.total
-      ? `<tr><td>Change</td><td></td><td></td><td style="text-align:right;">$${data.change.toFixed(2)}</td></tr>`
-      : `<tr><td style="color:#991b1b;">Balance Due</td><td></td><td></td><td style="text-align:right;color:#991b1b;">$${(data.total - data.amountReceived).toFixed(2)}</td></tr>`;
+      ? `<tr class="amt"><td>*** CHANGE ***</td><td></td><td></td><td style="text-align:right;">K${data.change.toFixed(2)}</td></tr>`
+      : `<tr class="amt"><td>*** BALANCE DUE ***</td><td></td><td></td><td style="text-align:right;">K${(data.total - data.amountReceived).toFixed(2)}</td></tr>`;
 
     const html = `<!DOCTYPE html>
 <html>
@@ -343,21 +348,21 @@ const POS = () => {
   td { padding: 1px 0; vertical-align: top; }
   .c { text-align: center; }
   .divider { text-align: center; font-size: 10px; overflow: hidden; white-space: nowrap; margin: 3px 0; }
-  .grand { font-size: 13px; font-weight: 700; }
+  .grand { font-size: 16px; font-weight: 800; }
+  .amt { font-size: 13px; font-weight: 700; }
 </style>
 </head>
 <body>
-  <div class="c" style="font-size:13px;font-weight:700;letter-spacing:1px;">${bName}</div>
+  <div class="c" style="font-size:14px;font-weight:700;letter-spacing:1px;">${bName}</div>
+  ${bPhone ? `<div class="c" style="font-size:11px;">Tel: ${bPhone}</div>` : ''}
   <div class="divider">${div42eq}</div>
   <div class="c" style="font-weight:700;font-size:12px;">SALES RECEIPT</div>
   <div class="divider">${div42eq}</div>
 
   <table>
     <tr><td>Receipt #:</td><td></td><td style="text-align:right;">${data.orderNumber}</td></tr>
-    <tr><td>Date:</td><td></td><td style="text-align:right;">${data.date.toLocaleDateString('en-GB')}</td></tr>
-    <tr><td>Time:</td><td></td><td style="text-align:right;">${data.date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true})}</td></tr>
+    <tr><td>Date &amp; Time:</td><td></td><td style="text-align:right;">${data.date.toLocaleDateString('en-GB')} ${data.date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td></tr>
     <tr><td>Customer:</td><td></td><td style="text-align:right;">${data.customerName || 'Walk-in'}</td></tr>
-    <tr><td>Payment:</td><td></td><td style="text-align:right;">${data.paymentMethod}</td></tr>
   </table>
   <div class="divider">${div42eq}</div>
 
@@ -373,18 +378,18 @@ const POS = () => {
   <div class="divider">${div42da}</div>
 
   <table>
-    <tr><td>Subtotal</td><td></td><td></td><td style="text-align:right;">$${data.subtotal.toFixed(2)}</td></tr>
+    <tr><td>Subtotal</td><td></td><td></td><td style="text-align:right;">K${data.subtotal.toFixed(2)}</td></tr>
     ${discountRow}
   </table>
   <div class="divider">${div42eq}</div>
 
   <table>
-    <tr class="grand"><td>TOTAL</td><td></td><td></td><td style="text-align:right;">$${data.total.toFixed(2)}</td></tr>
+    <tr class="grand"><td>TOTAL</td><td></td><td></td><td style="text-align:right;">K${data.total.toFixed(2)}</td></tr>
   </table>
   <div class="divider">${div42eq}</div>
 
   <table>
-    <tr><td>Amt Received:</td><td></td><td></td><td style="text-align:right;">$${data.amountReceived.toFixed(2)}</td></tr>
+    <tr class="amt"><td>Amt Received:</td><td></td><td></td><td style="text-align:right;">K${data.amountReceived.toFixed(2)}</td></tr>
     ${changeRow}
   </table>
   <div class="divider">${div42eq}</div>
@@ -394,7 +399,12 @@ const POS = () => {
 </body>
 </html>`;
 
-    // Use a hidden iframe so no popup window appears
+    // In Electron: print silently to default printer (no dialog)
+    if (window.electronAPI && window.electronAPI.printSilent) {
+      window.electronAPI.printSilent(html);
+      return;
+    }
+    // Web fallback: hidden iframe print
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
     document.body.appendChild(iframe);
@@ -410,7 +420,7 @@ const POS = () => {
   };
 
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
   return (
     <>
@@ -468,7 +478,7 @@ const POS = () => {
           )}
 
           <div className="category-filters">
-            {categories.map(cat => (
+            {['All', ...categories].map(cat => (
               <button key={cat} className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
                 onClick={() => setSelectedCategory(cat)}>{cat}</button>
             ))}
@@ -487,7 +497,7 @@ const POS = () => {
                     <h3>{product.name}</h3>
                     <p className="stock-info">In Stock: {salesBalance.toLocaleString()}</p>
                     <div className="product-price">
-                      <div className="price">${product.selling_price} <span>/ {product.unit}</span></div>
+                      <div className="price">K{product.selling_price} <span>/ {product.unit}</span></div>
                     </div>
                   </div>
                   {product.image_url ? (
@@ -530,7 +540,7 @@ const POS = () => {
                 <div key={item.product_id} className="cart-item">
                   <div className="cart-item-info">
                     <h4>{item.product_name}</h4>
-                    <p>${item.unit_price} / {item.unit}</p>
+                    <p>K{item.unit_price} / {item.unit}</p>
                   </div>
                   <div className="cart-item-qty">
                     <button onClick={() => updateQty(item.product_id, -1)}><FiMinus /></button>
@@ -549,7 +559,7 @@ const POS = () => {
                     />
                     <button onClick={() => updateQty(item.product_id, 1)}><FiPlus /></button>
                   </div>
-                  <div className="cart-item-total">${item.total_price.toFixed(2)}</div>
+                  <div className="cart-item-total">K{item.total_price.toFixed(2)}</div>
                   <button className="cart-item-remove" onClick={() => removeItem(item.product_id)}><FiX /></button>
                 </div>
               ))}
@@ -560,26 +570,26 @@ const POS = () => {
             <div className="cart-totals">
               <div className="cart-total-line">
                 <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>K{subtotal.toFixed(2)}</span>
               </div>
               <div className="cart-total-line">
                 <span>Discount</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  -$<input
+                  -K<input
                     type="number" min="0" value={discount}
-                    onChange={e => setDiscount(e.target.value)}
-                    style={{ width: 64, border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 13, textAlign: 'right' }}
+                    readOnly
+                    style={{ width: 64, border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 13, textAlign: 'right', background: '#f3f4f6', cursor: 'not-allowed', color: '#9ca3af' }}
                   />
                 </span>
               </div>
               <div className="cart-total-line total">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>K{total.toFixed(2)}</span>
               </div>
               <div className="cart-total-line">
                 <span>Amount Received</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  $<button
+                  K<button
                     onClick={() => { setNumpadValue(amountReceived ? String(amountReceived) : ''); setShowNumpad(true); }}
                     style={{
                       width: 130, border: '2px solid #2563eb', borderRadius: 6,
@@ -595,7 +605,7 @@ const POS = () => {
               </div>
               <div className="cart-total-line" style={{ color: parseFloat(amountReceived || 0) >= total ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
                 <span>{parseFloat(amountReceived || 0) >= total ? 'Change' : 'Remaining'}</span>
-                <span>${parseFloat(amountReceived || 0) >= total ? change.toFixed(2) : (total - parseFloat(amountReceived || 0)).toFixed(2)}</span>
+                <span>K{parseFloat(amountReceived || 0) >= total ? change.toFixed(2) : (total - parseFloat(amountReceived || 0)).toFixed(2)}</span>
               </div>
             </div>
             <div className="cart-actions">
@@ -638,7 +648,7 @@ const POS = () => {
               minHeight: 62, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
               fontFamily: 'monospace',
             }}>
-              ${numpadValue || '0'}
+              K{numpadValue || '0'}
             </div>
 
             {/* Quick amounts */}
@@ -650,7 +660,7 @@ const POS = () => {
                     background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 700,
                     cursor: 'pointer',
                   }}>
-                  ${amt.toFixed(2)}
+                  K{amt.toFixed(2)}
                 </button>
               ))}
             </div>
@@ -710,19 +720,29 @@ const POS = () => {
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
+        <div
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              if (showChangeBanner) { setShowChangeBanner(false); setShowReceipt(false); }
+              else { printThermalReceipt(receiptData, businessName, businessPhone); setShowChangeBanner(true); }
+            }
+          }}
+          tabIndex={0}
+          ref={el => el && el.focus()}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            outline: 'none',
+          }}>
           <div style={{
             background: '#fff', borderRadius: 12, width: 420,
-            maxHeight: '90vh', overflowY: 'auto',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden',
+            position: 'relative',
           }}>
-            {/* Receipt preview */}
-            <div style={{ padding: '28px 28px 16px', fontFamily: 'monospace' }}>
-              {/* Header */}
+            {/* ── FIXED HEADER ── */}
+            <div style={{ padding: '28px 28px 0', fontFamily: 'monospace', flexShrink: 0 }}>
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, fontFamily: 'sans-serif' }}>{businessName}</h2>
                 <p style={{ margin: '3px 0 0', fontSize: 11, color: '#6b7280' }}>Official Receipt</p>
@@ -730,14 +750,11 @@ const POS = () => {
 
               <div style={{ borderTop: '1px dashed #d1d5db', margin: '10px 0' }} />
 
-              {/* Order Info */}
               <div style={{ fontSize: 12, marginBottom: 10 }}>
                 {[
                   ['Receipt #', receiptData.orderNumber],
-                  ['Date', receiptData.date.toLocaleDateString('en-GB')],
-                  ['Time', receiptData.date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })],
+                  ['Date & Time', `${receiptData.date.toLocaleDateString('en-GB')}  ${receiptData.date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`],
                   ['Customer', receiptData.customerName || 'Walk-in'],
-                  ['Payment', receiptData.paymentMethod],
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                     <span style={{ color: '#6b7280' }}>{label}</span>
@@ -748,82 +765,126 @@ const POS = () => {
 
               <div style={{ borderTop: '1px dashed #d1d5db', margin: '10px 0' }} />
 
-              {/* Items */}
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', fontSize: 10, color: '#6b7280', marginBottom: 5, fontWeight: 600 }}>
-                  <span style={{ flex: 3 }}>ITEM</span>
-                  <span style={{ textAlign: 'center', flex: 1 }}>QTY</span>
-                  <span style={{ textAlign: 'right', flex: 1 }}>PRICE</span>
-                  <span style={{ textAlign: 'right', flex: 1 }}>TOTAL</span>
-                </div>
-                {receiptData.items.map((item, idx) => (
-                  <div key={idx} style={{ marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>{item.product_name}</div>
-                    <div style={{ display: 'flex', fontSize: 11 }}>
-                      <span style={{ flex: 3 }} />
-                      <span style={{ textAlign: 'center', flex: 1 }}>{item.quantity} {item.unit || ''}</span>
-                      <span style={{ textAlign: 'right', flex: 1 }}>${item.unit_price.toFixed(2)}</span>
-                      <span style={{ textAlign: 'right', flex: 1 }}>${item.total_price.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ))}
+              {/* Column headings */}
+              <div style={{ display: 'flex', fontSize: 10, color: '#6b7280', marginBottom: 6, fontWeight: 600 }}>
+                <span style={{ flex: 3 }}>ITEM</span>
+                <span style={{ textAlign: 'center', flex: 1 }}>QTY</span>
+                <span style={{ textAlign: 'right', flex: 1 }}>PRICE</span>
+                <span style={{ textAlign: 'right', flex: 1 }}>TOTAL</span>
               </div>
+            </div>
 
+            {/* ── SCROLLABLE ITEMS ── */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px', fontFamily: 'monospace' }}>
+              {receiptData.items.map((item, idx) => (
+                <div key={idx} style={{ marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{item.product_name}</div>
+                  <div style={{ display: 'flex', fontSize: 11 }}>
+                    <span style={{ flex: 3 }} />
+                    <span style={{ textAlign: 'center', flex: 1 }}>{item.quantity} {item.unit || ''}</span>
+                    <span style={{ textAlign: 'right', flex: 1 }}>K{item.unit_price.toFixed(2)}</span>
+                    <span style={{ textAlign: 'right', flex: 1 }}>K{item.total_price.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── FIXED FOOTER ── */}
+            <div style={{ padding: '0 28px 24px', fontFamily: 'monospace', flexShrink: 0 }}>
               <div style={{ borderTop: '1px dashed #d1d5db', margin: '10px 0' }} />
 
-              {/* Totals */}
               <div style={{ fontSize: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                   <span style={{ color: '#6b7280' }}>Subtotal</span>
-                  <span>${receiptData.subtotal.toFixed(2)}</span>
+                  <span>K{receiptData.subtotal.toFixed(2)}</span>
                 </div>
                 {receiptData.discount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                     <span style={{ color: '#dc2626' }}>Discount</span>
-                    <span style={{ color: '#dc2626' }}>-${receiptData.discount.toFixed(2)}</span>
+                    <span style={{ color: '#dc2626' }}>-K{receiptData.discount.toFixed(2)}</span>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingTop: 5, borderTop: '1px solid #e5e7eb', fontWeight: 700, fontSize: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingTop: 5, borderTop: '1px solid #e5e7eb', fontWeight: 800, fontSize: 18 }}>
                   <span>TOTAL</span>
-                  <span>${receiptData.total.toFixed(2)}</span>
+                  <span>K{receiptData.total.toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontWeight: 600, fontSize: 14 }}>
                   <span style={{ color: '#6b7280' }}>Amount Received</span>
-                  <span>${receiptData.amountReceived.toFixed(2)}</span>
+                  <span>K{receiptData.amountReceived.toFixed(2)}</span>
                 </div>
                 {receiptData.amountReceived >= receiptData.total ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#16a34a' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, color: '#16a34a' }}>
                     <span>Change</span>
-                    <span>${receiptData.change.toFixed(2)}</span>
+                    <span>K{receiptData.change.toFixed(2)}</span>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#dc2626' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, color: '#dc2626' }}>
                     <span>Balance Due</span>
-                    <span>${(receiptData.total - receiptData.amountReceived).toFixed(2)}</span>
+                    <span>K{(receiptData.total - receiptData.amountReceived).toFixed(2)}</span>
                   </div>
                 )}
               </div>
 
               <div style={{ borderTop: '1px dashed #d1d5db', margin: '14px 0 10px' }} />
 
-              <div style={{ textAlign: 'center', fontSize: 11, color: '#6b7280' }}>
+              <div style={{ textAlign: 'center', fontSize: 11, color: '#6b7280', marginBottom: 16 }}>
                 <p style={{ margin: 0 }}>Thank you for your purchase!</p>
                 <p style={{ margin: '2px 0 0' }}>Please come again.</p>
               </div>
-            </div>
 
-            {/* Buttons */}
-            <div style={{ display: 'flex', gap: 10, padding: '0 28px 24px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowReceipt(false)}
-                style={{ padding: '10px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>
-                Close
-              </button>
-              <button onClick={() => printThermalReceipt(receiptData, businessName)}
-                style={{ padding: '10px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-                🖨 Print Receipt
-              </button>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowReceipt(false)}
+                  style={{ padding: '10px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>
+                  Close
+                </button>
+                <button onClick={() => { printThermalReceipt(receiptData, businessName, businessPhone); setShowChangeBanner(true); }}
+                  style={{ padding: '10px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                  🖨 Print Receipt
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* ── CHANGE BANNER ── shown after print */}
+          {showChangeBanner && receiptData && (
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: 12,
+              background: 'rgba(0,0,0,0.75)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', zIndex: 10,
+            }}>
+              <div style={{
+                background: '#fff', borderRadius: 16, padding: '36px 40px',
+                textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', minWidth: 280,
+              }}>
+                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4, letterSpacing: 1, textTransform: 'uppercase' }}>Transaction Complete</div>
+                {receiptData.amountReceived >= receiptData.total ? (
+                  <>
+                    <div style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Change to give customer</div>
+                    <div style={{ fontSize: 52, fontWeight: 900, color: '#16a34a', lineHeight: 1, marginBottom: 24 }}>
+                      K{receiptData.change.toFixed(2)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Balance still owed</div>
+                    <div style={{ fontSize: 52, fontWeight: 900, color: '#dc2626', lineHeight: 1, marginBottom: 24 }}>
+                      K{(receiptData.total - receiptData.amountReceived).toFixed(2)}
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={() => { setShowChangeBanner(false); setShowReceipt(false); }}
+                  style={{
+                    padding: '12px 48px', background: '#dc2626', color: '#fff',
+                    border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700,
+                    cursor: 'pointer', letterSpacing: 0.5,
+                  }}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

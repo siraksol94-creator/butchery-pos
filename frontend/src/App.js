@@ -26,6 +26,8 @@ import CashReport from './pages/CashReport';
 import StockAdjustment from './pages/StockAdjustment';
 import Categories from './pages/Categories';
 import BinCard from './pages/BinCard';
+import Production from './pages/Production';
+import SalesReturn from './pages/SalesReturn';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -85,7 +87,7 @@ function AppRoutes() {
   }
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <LicenseBanner licenseStatus={licenseStatus} />
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -104,6 +106,8 @@ function AppRoutes() {
         <Route path="stock/adjustments" element={<StockAdjustment />} />
         <Route path="stock/categories" element={<Categories />} />
         <Route path="stock/bin-card" element={<BinCard />} />
+        <Route path="stock/production" element={<Production />} />
+        <Route path="stock/sales-returns" element={<SalesReturn />} />
         <Route path="accounting/cash-receipts" element={<CashReceipt />} />
         <Route path="accounting/payment-vouchers" element={<PaymentVoucher />} />
         <Route path="accounting/cash-book" element={<CashBook />} />
@@ -114,7 +118,7 @@ function AppRoutes() {
         <Route path="settings/users" element={<Users />} />
       </Route>
     </Routes>
-    </>
+    </div>
   );
 }
 

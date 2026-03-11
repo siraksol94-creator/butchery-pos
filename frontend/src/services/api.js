@@ -147,4 +147,19 @@ export const getSettings = () => api.get('/settings');
 export const updateProfile = (data) => api.put('/settings/profile', data);
 export const updateBusiness = (data) => api.put('/settings/business', data);
 
+// Production
+export const getProductions = () => api.get('/production');
+export const getProductionStats = () => api.get('/production/stats');
+export const getProduction = (id) => api.get(`/production/${id}`);
+export const createProduction = (data) => api.post('/production', data);
+export const deleteProduction = (id) => api.delete(`/production/${id}`);
+
+// Sales Returns
+export const getSalesReturns = () => api.get('/sales-returns');
+export const getSalesReturnStats = () => api.get('/sales-returns/stats');
+export const getSalesReturnNotes = () => api.get('/sales-returns/notes');
+export const getSalesReturn = (id) => api.get(`/sales-returns/${id}`);
+export const createSalesReturn = (data) => api.post('/sales-returns', data);
+export const deleteSalesReturn = (id) => api.delete(`/sales-returns/${id}`);
+
 export default api;

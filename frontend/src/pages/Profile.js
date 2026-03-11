@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { FiSave, FiUser, FiMail, FiPhone, FiMapPin, FiCloud, FiWifi, FiWifiOff } from 'react-icons/fi';
+import { getSettings, updateProfile, updateBusiness } from '../services/api';
+import { FiSave, FiUser, FiMail, FiPhone, FiMapPin, FiCloud, FiWifi, FiWifiOff, FiAlertTriangle } from 'react-icons/fi';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [syncInfo, setSyncInfo]       = useState(null);
   const [resetting, setResetting]     = useState(false);
 
@@ -27,22 +28,60 @@ const Profile = () => {
   };
 
   const [form, setForm] = useState({
-    firstName: user?.name?.split(' ')[0] || 'Admin',
-    lastName: user?.name?.split(' ')[1] || 'User',
-    email: user?.email || 'admin@butcherypro.com',
-    phone: '+1 555-0100',
-    address: '123 Main Street, City',
-    role: user?.role || 'Administrator',
-    businessName: 'Butchery Pro',
-    businessPhone: '+1 555-0000',
-    businessEmail: 'info@butcherypro.com',
+    firstName: '', lastName: '', email: '', phone: '', address: '', role: '',
+    businessName: '', businessPhone: '', businessEmail: '',
   });
+  const [saving, setSaving] = useState(false);
+  const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=ask-settings
+  const [factoryResetting, setFactoryResetting] = useState(false);
+
+  const doFactoryReset = async (includeSettings) => {
+    setFactoryResetting(true);
+    try {
+      await fetch('/api/sync/factory-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeSettings }),
+      });
+      logout();
+    } catch {
+      alert('Factory reset failed. Please try again.');
+      setFactoryResetting(false);
+      setResetStep(0);
+    }
+  };
+
+  useEffect(() => {
+    getSettings().then(res => {
+      const u = res.data?.user || {};
+      const b = res.data?.business || {};
+      setForm({
+        firstName: u.first_name || '',
+        lastName: u.last_name || '',
+        email: u.email || '',
+        phone: u.phone || '',
+        address: u.address || '',
+        role: u.role || '',
+        businessName: b.business_name || '',
+        businessPhone: b.business_phone || '',
+        businessEmail: b.business_email || '',
+      });
+    }).catch(() => {});
+  }, []);
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    alert('Profile updated successfully!');
+    setSaving(true);
+    try {
+      await updateProfile({ firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, address: form.address });
+      await updateBusiness({ business_name: form.businessName, business_phone: form.businessPhone, business_email: form.businessEmail });
+      alert('Profile updated successfully!');
+    } catch {
+      alert('Failed to save. Please try again.');
+    }
+    setSaving(false);
   };
 
   const getInitials = () => `${form.firstName[0]}${form.lastName[0]}`.toUpperCase();
@@ -125,7 +164,7 @@ const Profile = () => {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary"><FiSave /> Save Changes</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}><FiSave /> {saving ? 'Saving...' : 'Save Changes'}</button>
             </div>
           </form>
 
@@ -172,8 +211,71 @@ const Profile = () => {
               <span style={{ color: '#9ca3af', fontSize: 13 }}>Loading sync status…</span>
             )}
           </div>
+
+          {/* Factory Reset Section */}
+          <div className="form-section" style={{ marginTop: 24, borderTop: '2px solid #fee2e2', paddingTop: 20 }}>
+            <h3 className="form-section-title" style={{ color: '#dc2626' }}><FiAlertTriangle /> Danger Zone</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+              Factory reset wipes all local data — products, orders, GRN, SIV, customers, suppliers, and disconnects from cloud. This cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={() => setResetStep(1)}
+              style={{ padding: '9px 20px', background: '#fff', border: '2px solid #dc2626', borderRadius: 8, color: '#dc2626', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+            >
+              <FiAlertTriangle style={{ marginRight: 6 }} /> Factory Reset
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Step 1: Confirm reset ── */}
+      {resetStep === 1 && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '36px 40px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <FiAlertTriangle size={28} color="#dc2626" />
+            </div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 20 }}>Factory Reset?</h3>
+            <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 24px' }}>
+              This will permanently delete <strong>all data</strong> on this device — orders, products, GRN, SIV, customers, suppliers — and disconnect from cloud. This <strong>cannot be undone</strong>.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={() => setResetStep(0)} style={{ padding: '10px 24px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button onClick={() => setResetStep(2)} style={{ padding: '10px 24px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Yes, Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 2: Ask about settings ── */}
+      {resetStep === 2 && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '36px 40px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 18 }}>Delete Company Settings?</h3>
+            <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 24px' }}>
+              Do you also want to delete the company name, phone number, and email?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => doFactoryReset(true)}
+                disabled={factoryResetting}
+                style={{ padding: '12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}
+              >
+                {factoryResetting ? 'Resetting...' : 'Yes — Delete Everything'}
+              </button>
+              <button
+                onClick={() => doFactoryReset(false)}
+                disabled={factoryResetting}
+                style={{ padding: '12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}
+              >
+                {factoryResetting ? 'Resetting...' : 'No — Keep Company Settings'}
+              </button>
+              <button onClick={() => setResetStep(0)} disabled={factoryResetting} style={{ padding: '10px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getSIVs, getSIVStats, createSIV, updateSIV, getSIV, getProducts, getSettings } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2 } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2, FiUpload } from 'react-icons/fi';
 
 const defaultStats = { totalSIVs: 0, thisMonth: 0, totalValue: 0, pending: 0 };
 const emptyItem = () => ({ product_id: '', product_text: '', quantity: '', unit_price: '', total_price: 0 });
@@ -31,6 +31,41 @@ const SIV = () => {
 
   // ── Product autocomplete ──────────────────────────────────────────
   const [openDropdownIdx, setOpenDropdownIdx] = useState(-1);
+  const [highlightedIdx, setHighlightedIdx] = useState(-1);
+
+  // ── CSV import ────────────────────────────────────────────────────
+  const csvInputRef = useRef(null);
+  const importCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split('\n').filter(l => l.trim());
+      const header = lines[0].toLowerCase();
+      const nameIdx = header.split(',').findIndex(h => h.trim().includes('name'));
+      const qtyIdx  = header.split(',').findIndex(h => /q.*t/i.test(h.trim().replace(/\s/g, '')));
+      if (nameIdx === -1) return;
+      const newItems = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const csvName = (cols[nameIdx] || '').trim();
+        const qty = qtyIdx >= 0 ? (cols[qtyIdx] || '').trim() : '';
+        if (!csvName) continue;
+        const match = products.find(p => p.name.trim().toLowerCase() === csvName.toLowerCase());
+        if (!match) continue;
+        newItems.push({
+          product_id: match.id,
+          product_text: match.name,
+          quantity: qty || '',
+          unit_price: match.selling_price || '',
+          total_price: qty && match.selling_price ? parseFloat(qty) * parseFloat(match.selling_price) : 0,
+        });
+      }
+      if (newItems.length > 0) setItems(newItems);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // ── Department management ─────────────────────────────────────────
   const [departments, setDepartments]     = useState(DEFAULT_DEPARTMENTS);
@@ -57,7 +92,7 @@ const SIV = () => {
 
   useEffect(() => {
     fetchData();
-    getProducts().then(r => { if (r.data?.length > 0) setProducts(r.data); }).catch(() => {});
+    getProducts().then(r => { if (r.data?.length > 0) setProducts(r.data.filter(p => p.product_type !== 'raw_material')); }).catch(() => {});
     getSettings().then(r => setBusinessInfo(r.data?.business || {})).catch(() => {});
   }, []);
 
@@ -345,8 +380,8 @@ const SIV = () => {
 
       {/* ── View SIV Modal ────────────────────────────────────────── */}
       {viewSIV && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 680, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', margin: 'auto' }}>
 
             {/* Header */}
             <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)', borderRadius: '14px 14px 0 0', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -389,7 +424,7 @@ const SIV = () => {
               </div>
 
               {/* Items table */}
-              <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'visible', marginBottom: 20 }}>
                 <div style={{ background: '#eff6ff', padding: '10px 14px', borderBottom: '1px solid #bfdbfe', fontSize: 11.5, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Items Issued
                 </div>
@@ -482,10 +517,20 @@ const SIV = () => {
                   </p>
                 </div>
               </div>
-              <button className="modal-close" onClick={() => setShowForm(false)}><FiX /></button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input ref={csvInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={importCSV} />
+                <button
+                  type="button"
+                  onClick={() => csvInputRef.current && csvInputRef.current.click()}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#16a34a', fontWeight: 600 }}
+                >
+                  <FiUpload size={14} /> Import CSV
+                </button>
+                <button className="modal-close" onClick={() => setShowForm(false)}><FiX /></button>
+              </div>
             </div>
 
-            <div className="modal-body" style={{ maxHeight: '82vh', overflowY: 'auto' }}>
+            <div className="modal-body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div className="form-group">
                   <label className="form-label">{t('department')} *</label>
@@ -604,26 +649,45 @@ const SIV = () => {
                                       return u;
                                     });
                                     setOpenDropdownIdx(index);
+                                    setHighlightedIdx(-1);
                                   }}
-                                  onFocus={() => setOpenDropdownIdx(index)}
-                                  onBlur={() => setTimeout(() => setOpenDropdownIdx(-1), 160)}
+                                  onFocus={() => { setOpenDropdownIdx(index); setHighlightedIdx(-1); }}
+                                  onBlur={() => setTimeout(() => { setOpenDropdownIdx(-1); setHighlightedIdx(-1); }, 160)}
+                                  onKeyDown={e => {
+                                    const filtered = products.filter(p => !items[index].product_text || p.name.toLowerCase().includes(items[index].product_text.toLowerCase()));
+                                    if (e.key === 'ArrowDown') {
+                                      e.preventDefault();
+                                      setOpenDropdownIdx(index);
+                                      setHighlightedIdx(prev => Math.min(prev + 1, filtered.length - 1));
+                                    } else if (e.key === 'ArrowUp') {
+                                      e.preventDefault();
+                                      setHighlightedIdx(prev => Math.max(prev - 1, 0));
+                                    } else if (e.key === 'Enter' && highlightedIdx >= 0 && filtered[highlightedIdx]) {
+                                      e.preventDefault();
+                                      selectProduct(index, filtered[highlightedIdx]);
+                                      setHighlightedIdx(-1);
+                                    } else if (e.key === 'Escape') {
+                                      setOpenDropdownIdx(-1);
+                                      setHighlightedIdx(-1);
+                                    }
+                                  }}
                                   placeholder="Type or search product…"
                                   style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
                                 />
                                 {openDropdownIdx === index && (
-                                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, maxHeight: 320, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.12)', marginTop: 2 }}>
+                                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, maxHeight: 480, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', marginTop: 2 }}>
                                     {products
                                       .filter(p => !item.product_text || p.name.toLowerCase().includes(item.product_text.toLowerCase()))
-                                      .map(p => (
+                                      .map((p, pi) => (
                                         <div
                                           key={p.id}
                                           onMouseDown={() => selectProduct(index, p)}
-                                          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                          onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
-                                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                                          onMouseEnter={() => setHighlightedIdx(pi)}
+                                          onMouseLeave={() => setHighlightedIdx(-1)}
+                                          style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: highlightedIdx === pi ? '#eff6ff' : '#fff' }}
                                         >
-                                          <span style={{ fontWeight: 500 }}>{p.name} <span style={{ fontSize: 11, color: '#9ca3af' }}>({p.unit})</span></span>
-                                          <span style={{ fontSize: 11, color: '#9ca3af' }}>${parseFloat(p.selling_price || 0).toFixed(2)}</span>
+                                          <span style={{ fontWeight: 500 }}>{p.name} <span style={{ fontSize: 12, color: '#9ca3af' }}>({p.unit})</span></span>
+                                          <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>${parseFloat(p.selling_price || 0).toFixed(2)}</span>
                                         </div>
                                       ))
                                     }

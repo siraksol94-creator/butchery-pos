@@ -5,7 +5,8 @@ import { useLanguage } from '../context/LanguageContext';
 import SyncStatus from './SyncStatus';
 import { FiGrid, FiShoppingCart, FiPackage, FiFileText, FiDollarSign, FiUsers, FiSettings,
          FiChevronDown, FiLogOut, FiSearch, FiBell, FiMenu, FiDownload, FiUpload, FiList,
-         FiBook, FiCreditCard, FiClipboard, FiUser, FiUserPlus, FiSliders, FiGlobe, FiCloud } from 'react-icons/fi';
+         FiBook, FiCreditCard, FiClipboard, FiUser, FiUserPlus, FiSliders, FiGlobe, FiCloud, FiTool,
+         FiCornerDownLeft } from 'react-icons/fi';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -65,9 +66,63 @@ const Layout = () => {
   const isActive = (path) => location.pathname === path;
   const isGroupActive = (paths) => paths.some(p => location.pathname.startsWith(p));
 
-  const now = new Date();
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // Global search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); setSearchOpen(false); return; }
+    const q = searchQuery.toLowerCase();
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch('/api/products', { headers }).then(r => r.json()).catch(() => []),
+      fetch('/api/customers', { headers }).then(r => r.json()).catch(() => []),
+      fetch('/api/suppliers', { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([products, customers, suppliers]) => {
+      const results = [];
+      (Array.isArray(products) ? products : products.data || [])
+        .filter(p => (p.name || '').toLowerCase().includes(q))
+        .slice(0, 4)
+        .forEach(p => results.push({ type: 'Product', label: p.name, sub: `K ${p.selling_price ?? ''}`, path: '/stock/items' }));
+      (Array.isArray(customers) ? customers : customers.data || [])
+        .filter(c => (c.name || '').toLowerCase().includes(q))
+        .slice(0, 3)
+        .forEach(c => results.push({ type: 'Customer', label: c.name, sub: c.phone || '', path: '/suppliers-customers/customers' }));
+      (Array.isArray(suppliers) ? suppliers : suppliers.data || [])
+        .filter(s => (s.name || '').toLowerCase().includes(q))
+        .slice(0, 3)
+        .forEach(s => results.push({ type: 'Supplier', label: s.name, sub: s.phone || '', path: '/suppliers-customers/suppliers' }));
+      setSearchResults(results);
+      setSearchOpen(results.length > 0);
+    });
+  }, [searchQuery]);
+
+  const handleSearchSelect = (path) => {
+    navigate(path);
+    setSearchQuery('');
+    setSearchOpen(false);
+  };
+
+  const typeColors = { Product: '#2563eb', Customer: '#16a34a', Supplier: '#f59e0b' };
 
   const pageTitle = () => {
     const path = location.pathname;
@@ -75,6 +130,7 @@ const Layout = () => {
       '/dashboard': t('dashboard'), '/pos': t('pos'), '/pos/sales-report': t('salesReport'),
       '/pos/sales-inventory': t('salesInventory'), '/pos/cash-report': t('cashReport'),
       '/stock/items': t('itemDetails'), '/stock/grn': t('grn'), '/stock/siv': t('siv'),
+      '/stock/production': 'Production', '/stock/sales-returns': 'Sales Returns',
       '/stock/inventory': t('inventory'), '/stock/adjustments': t('stockAdjustment'),
       '/stock/categories': 'Categories',
       '/accounting/cash-receipts': t('cashReceipt'), '/accounting/payment-vouchers': t('paymentVoucher'),
@@ -161,6 +217,12 @@ const Layout = () => {
                   </div>
                   <div className={`nav-item ${isActive('/stock/siv') ? 'active' : ''}`} onClick={() => navigate('/stock/siv')}>
                     <FiUpload className="nav-icon" /> <span>{t('siv')}</span>
+                  </div>
+                  <div className={`nav-item ${isActive('/stock/production') ? 'active' : ''}`} onClick={() => navigate('/stock/production')}>
+                    <FiTool className="nav-icon" /> <span>Production</span>
+                  </div>
+                  <div className={`nav-item ${isActive('/stock/sales-returns') ? 'active' : ''}`} onClick={() => navigate('/stock/sales-returns')}>
+                    <FiCornerDownLeft className="nav-icon" /> <span>Sales Returns</span>
                   </div>
                   <div className={`nav-item ${isActive('/stock/inventory') ? 'active' : ''}`} onClick={() => navigate('/stock/inventory')}>
                     <FiList className="nav-icon" /> <span>{t('inventory')}</span>
@@ -284,12 +346,38 @@ const Layout = () => {
               <FiMenu />
             </button>
             <h2>{pageTitle()}</h2>
-            <span className="online-badge">{t('online')}</span>
           </div>
           <div className="top-header-right">
-            <div className="search-bar">
-              <FiSearch style={{ color: '#9ca3af' }} />
-              <input type="text" placeholder={t('search')} />
+            <div ref={searchRef} style={{ position: 'relative' }}>
+              <div className="search-bar">
+                <FiSearch style={{ color: '#9ca3af' }} />
+                <input
+                  type="text"
+                  placeholder={t('search')}
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+                />
+              </div>
+              {searchOpen && (
+                <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1000, overflow: 'hidden', minWidth: 280 }}>
+                  {searchResults.map((r, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handleSearchSelect(r.path)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: i < searchResults.length - 1 ? '1px solid #f1f5f9' : 'none' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: `${typeColors[r.type]}18`, color: typeColors[r.type], minWidth: 56, textAlign: 'center' }}>{r.type}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{r.label}</div>
+                        {r.sub && <div style={{ fontSize: 12, color: '#9ca3af' }}>{r.sub}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {/* Language Selector */}
             <div ref={langRef} style={{ position: 'relative' }}>

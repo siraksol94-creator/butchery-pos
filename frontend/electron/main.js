@@ -24,6 +24,20 @@ ipcMain.handle('check-for-updates', () => {
   return { error: 'Auto-updater not available' };
 });
 
+// IPC: silent print — opens hidden BrowserWindow, loads HTML, prints to default printer
+ipcMain.handle('print-silent', (_event, html) => {
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
+    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.print({ silent: true, printBackground: true }, (success, reason) => {
+        win.close();
+        resolve({ success, reason });
+      });
+    });
+  });
+});
+
 function startBackend() {
   log('startBackend called, isPackaged=' + app.isPackaged);
 
