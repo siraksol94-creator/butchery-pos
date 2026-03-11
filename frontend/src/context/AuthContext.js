@@ -33,8 +33,17 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Returns true if the logged-in user can access a given permission key
+  const hasPermission = (perm) => {
+    if (!user) return false;
+    if (user.role === 'Administrator') return true;
+    const perms = Array.isArray(user.permissions) ? user.permissions : [];
+    if (perms.includes('Full Access')) return true;
+    return perms.includes(perm);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, isAuthenticated: !!token, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

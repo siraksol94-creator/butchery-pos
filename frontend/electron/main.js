@@ -4,7 +4,6 @@ const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
 
-// Use temp dir — always writable, no app.getPath needed before ready
 const logFile = path.join(os.tmpdir(), 'butchery-startup.log');
 function log(msg) {
   try { fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`); } catch (e) {}
@@ -16,6 +15,15 @@ let mainWindow;
 let splashWindow;
 let _autoUpdater = null;
 
+// Update the status text shown on splash screen
+function setSplashStatus(msg) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents
+      .executeJavaScript(`(function(){ var el = document.getElementById('status'); if(el) el.textContent = ${JSON.stringify(msg)}; })()`)
+      .catch(() => {});
+  }
+}
+
 // IPC: renderer can request a manual update check
 ipcMain.handle('check-for-updates', () => {
   if (_autoUpdater) {
@@ -25,7 +33,7 @@ ipcMain.handle('check-for-updates', () => {
   return { error: 'Auto-updater not available' };
 });
 
-// IPC: silent print — opens hidden BrowserWindow, loads HTML, prints to default printer
+// IPC: silent print
 ipcMain.handle('print-silent', (_event, html) => {
   return new Promise((resolve) => {
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
@@ -41,16 +49,12 @@ ipcMain.handle('print-silent', (_event, html) => {
 
 function startBackend() {
   log('startBackend called, isPackaged=' + app.isPackaged);
-
-  process.env.ELECTRON_USER_DATA     = app.getPath('userData');
-  process.env.ELECTRON_PACKAGED      = app.isPackaged ? '1' : '0';
-  process.env.PORT                   = '5000';
+  process.env.ELECTRON_USER_DATA      = app.getPath('userData');
+  process.env.ELECTRON_PACKAGED       = app.isPackaged ? '1' : '0';
+  process.env.PORT                    = '5000';
   process.env.ELECTRON_FRONTEND_BUILD = app.isPackaged
     ? path.join(process.resourcesPath, 'frontend', 'build')
     : path.join(__dirname, '../../frontend/build');
-
-  log('userData: '      + process.env.ELECTRON_USER_DATA);
-  log('frontendBuild: ' + process.env.ELECTRON_FRONTEND_BUILD);
 
   const backendPath = app.isPackaged
     ? path.join(process.resourcesPath, 'backend', 'server.js')
@@ -65,31 +69,28 @@ function startBackend() {
   }
 }
 
+// Promise that resolves when backend is healthy, or after timeout
 function waitForBackend(retries = 30) {
-  http.get('http://localhost:5000/api/health', (res) => {
-    res.resume();
-    if (res.statusCode === 200) {
-      log('backend ready — creating window');
-      createWindow();
-    } else {
-      retry(retries);
+  return new Promise((resolve) => {
+    function check(remaining) {
+      http.get('http://localhost:5000/api/health', (res) => {
+        res.resume();
+        if (res.statusCode === 200) { log('backend ready'); resolve(); }
+        else retry(remaining);
+      }).on('error', () => retry(remaining));
     }
-  }).on('error', () => retry(retries));
-}
-
-function retry(retries) {
-  if (retries <= 0) {
-    log('backend timeout — opening window anyway');
-    createWindow();
-    return;
-  }
-  setTimeout(() => waitForBackend(retries - 1), 500);
+    function retry(remaining) {
+      if (remaining <= 0) { log('backend timeout — continuing anyway'); resolve(); return; }
+      setTimeout(() => check(remaining - 1), 500);
+    }
+    check(retries);
+  });
 }
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 420,
-    height: 320,
+    height: 380,
     frame: false,
     transparent: false,
     resizable: false,
@@ -125,80 +126,130 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     log('page loaded OK');
     mainWindow.show();
-    if (splashWindow) splashWindow.close();
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
   });
   mainWindow.webContents.on('did-fail-load', (e, code, desc) => {
     log('page FAILED: ' + code + ' ' + desc);
     mainWindow.show();
-    if (splashWindow) splashWindow.close();
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
   });
   mainWindow.on('closed', () => { log('window closed'); mainWindow = null; });
 }
 
-app.whenReady().then(() => {
+// Check for updates — resolves with: 'no-update' | 'error' | 'timeout' | { type: 'update-available', info }
+function checkForUpdate() {
+  return new Promise((resolve) => {
+    try {
+      const { autoUpdater } = require('electron-updater');
+      _autoUpdater = autoUpdater;
+      autoUpdater.autoDownload = false;
+      autoUpdater.autoInstallOnAppQuit = false;
+      autoUpdater.logger = null;
+
+      const timer = setTimeout(() => { log('update check timed out'); resolve('timeout'); }, 10000);
+
+      autoUpdater.once('update-not-available', () => {
+        log('No update available');
+        clearTimeout(timer);
+        resolve('no-update');
+      });
+
+      autoUpdater.once('update-available', (info) => {
+        log('Update available: ' + info.version);
+        clearTimeout(timer);
+        resolve({ type: 'update-available', info });
+      });
+
+      autoUpdater.once('error', (err) => {
+        log('AutoUpdater error: ' + err.message);
+        clearTimeout(timer);
+        resolve('error');
+      });
+
+      autoUpdater.checkForUpdates().catch((err) => {
+        log('checkForUpdates threw: ' + err.message);
+        clearTimeout(timer);
+        resolve('error');
+      });
+
+    } catch (e) {
+      log('AutoUpdater load error: ' + e.message);
+      resolve('error');
+    }
+  });
+}
+
+app.whenReady().then(async () => {
   log('app ready');
   createSplashWindow();
   startBackend();
-  waitForBackend(30);
 
-  // ─── Auto-update (only in packaged builds) ─────────────────────────────
-  if (!app.isPackaged) return;
-  try {
-    const { autoUpdater } = require('electron-updater');
-    _autoUpdater = autoUpdater;
-    autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
+  // Minimum 5 seconds so company info on splash is readable
+  const minDelay    = new Promise(resolve => setTimeout(resolve, 5000));
+  const backendReady = waitForBackend(30);
 
-    autoUpdater.on('update-not-available', () => {
-      log('No update available');
-      if (mainWindow) mainWindow.webContents.send('update-not-available');
-    });
+  // Wait for splash HTML to load before injecting status text
+  await new Promise(resolve => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.webContents.once('did-finish-load', resolve);
+    } else {
+      resolve();
+    }
+  });
 
-    autoUpdater.on('update-available', (info) => {
-      log('Update available: ' + info.version);
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Available',
-        message: `A new version (${info.version}) of Butchery Pro is available.\nDo you want to download and install it now?`,
-        buttons: ['Install Now', 'Skip'],
-        defaultId: 0,
-        cancelId: 1,
-      }).then(({ response }) => {
-        if (response === 0) {
-          dialog.showMessageBox({
-            type: 'info',
-            title: 'Downloading Update',
-            message: 'Downloading update in the background...\nThe app will restart automatically when ready.',
-            buttons: ['OK'],
-          });
-          autoUpdater.downloadUpdate();
-        } else {
-          log('Update skipped by user');
-        }
-      });
-    });
+  setSplashStatus('Starting backend...');
 
-    autoUpdater.on('update-downloaded', (info) => {
-      log('Update downloaded: ' + info.version);
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Ready',
-        message: `Version ${info.version} is ready.\nThe app will now restart to apply the update.`,
-        buttons: ['Restart Now'],
-        defaultId: 0,
-      }).then(() => {
-        autoUpdater.quitAndInstall();
-      });
-    });
+  let updateResult = 'no-update';
 
-    autoUpdater.on('error', (err) => {
-      log('AutoUpdater error: ' + err.message);
-    });
-
-    autoUpdater.checkForUpdates();
-  } catch (e) {
-    log('AutoUpdater load error: ' + e.message);
+  if (app.isPackaged) {
+    setSplashStatus('Checking for updates...');
+    // Run all three in parallel — proceed only when all are done
+    [, , updateResult] = await Promise.all([minDelay, backendReady, checkForUpdate()]);
+  } else {
+    setSplashStatus('Development mode');
+    await Promise.all([minDelay, backendReady]);
   }
+
+  // If update is available — show dialog BEFORE opening main window
+  if (updateResult && updateResult.type === 'update-available') {
+    setSplashStatus('Update available!');
+
+    const { response } = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Available',
+      message: `Version ${updateResult.info.version} of Butchery Pro is available.\nDo you want to download and install it now?`,
+      buttons: ['Install Now', 'Skip for Now'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+
+    if (response === 0) {
+      setSplashStatus('Downloading update...');
+
+      _autoUpdater.on('download-progress', (progress) => {
+        setSplashStatus(`Downloading... ${Math.round(progress.percent)}%`);
+      });
+
+      _autoUpdater.once('update-downloaded', async (info) => {
+        setSplashStatus('Restarting to apply update...');
+        await dialog.showMessageBox({
+          type: 'info',
+          title: 'Update Ready',
+          message: `Version ${info.version} is ready.\nThe app will now restart to apply the update.`,
+          buttons: ['Restart Now'],
+          defaultId: 0,
+        });
+        _autoUpdater.quitAndInstall();
+      });
+
+      _autoUpdater.downloadUpdate();
+      return; // App will restart — don't open main window
+    }
+    // User chose Skip — fall through to open main window normally
+  }
+
+  setSplashStatus('Ready!');
+  createWindow();
 });
 
 app.on('window-all-closed', () => {

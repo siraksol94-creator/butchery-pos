@@ -22,67 +22,101 @@
     }
 
     .icon {
-      font-size: 64px;
-      margin-bottom: 20px;
+      font-size: 52px;
+      margin-bottom: 10px;
       animation: pulse 2s ease-in-out infinite;
     }
 
     .title {
-      font-size: 32px;
+      font-size: 28px;
       font-weight: 700;
       letter-spacing: 2px;
       color: #e8b84b;
-      margin-bottom: 6px;
+      margin-bottom: 3px;
     }
 
     .subtitle {
-      font-size: 13px;
-      letter-spacing: 4px;
-      color: #888;
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: #555;
       text-transform: uppercase;
-      margin-bottom: 48px;
+      margin-bottom: 20px;
+    }
+
+    .divider {
+      width: 200px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #e8b84b55, transparent);
+      margin-bottom: 18px;
+    }
+
+    .dev-label {
+      font-size: 10px;
+      color: #3a3a5a;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .dev-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #c8a84b;
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .dev-info {
+      font-size: 11px;
+      color: #3a3a5a;
+      line-height: 1.9;
+      text-align: center;
+      letter-spacing: 0.3px;
+      margin-bottom: 22px;
     }
 
     .loader-track {
-      width: 220px;
+      width: 240px;
       height: 3px;
       background: #2a2a3e;
       border-radius: 2px;
       overflow: hidden;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
 
     .loader-bar {
       height: 100%;
-      width: 40%;
+      width: 0%;
       background: linear-gradient(90deg, #e8b84b, #f0d080);
       border-radius: 2px;
-      animation: slide 1.4s ease-in-out infinite;
+      animation: fill 5s linear forwards;
     }
 
     .status {
-      font-size: 12px;
-      color: #555;
+      font-size: 11px;
+      color: #3a3a5a;
       letter-spacing: 1px;
+      min-height: 16px;
     }
 
     .version {
       position: absolute;
-      bottom: 20px;
-      font-size: 11px;
-      color: #333;
+      bottom: 14px;
+      font-size: 10px;
+      color: #252538;
       letter-spacing: 1px;
     }
 
     @keyframes pulse {
       0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.08); }
+      50% { transform: scale(1.06); }
     }
 
-    @keyframes slide {
-      0%   { transform: translateX(-100%); }
-      50%  { transform: translateX(150%); }
-      100% { transform: translateX(150%); }
+    @keyframes fill {
+      0%   { width: 0%; }
+      100% { width: 100%; }
     }
   </style>
 </head>
@@ -90,10 +124,22 @@
   <div class="icon">🥩</div>
   <div class="title">Butchery Pro</div>
   <div class="subtitle">Management System</div>
+
+  <div class="divider"></div>
+
+  <div class="dev-label">Developed by</div>
+  <div class="dev-name">SIDANIT and Business Solutions</div>
+  <div class="dev-info">
+    www.sidanitsolutions.com<br>
+    +260 775 722 196 &nbsp;/&nbsp; +260 775 722 228<br>
+    Lusaka, Zambia
+  </div>
+
   <div class="loader-track">
     <div class="loader-bar"></div>
   </div>
-  <div class="status">Starting...</div>
-  <div class="version">v1.2.3</div>
+  <div class="status" id="status">Starting...</div>
+
+  <div class="version">v1.2.4</div>
 </body>
 </html>

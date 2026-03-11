@@ -3,7 +3,7 @@ import { getUsers, getUserStats, createUser, updateUser, deleteUser } from '../s
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUsers, FiUserCheck, FiUserX, FiShield, FiX, FiEye, FiEyeOff, FiUser, FiMail, FiPhone, FiLock } from 'react-icons/fi';
 
 const ROLES = ['Administrator', 'Manager', 'Cashier', 'Staff'];
-const ALL_PERMISSIONS = ['POS', 'Sales', 'Stock', 'GRN', 'SIV', 'Reports', 'Customers', 'Suppliers', 'Full Access'];
+const ALL_PERMISSIONS = ['POS', 'Sales', 'Stock', 'GRN', 'SIV', 'Reports', 'Accounting', 'Customers', 'Suppliers', 'Full Access'];
 const roleColors = { Administrator: '#dc2626', Manager: '#2563eb', Cashier: '#16a34a', Staff: '#f59e0b' };
 const avatarColors = ['#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#0891b2', '#be185d'];
 

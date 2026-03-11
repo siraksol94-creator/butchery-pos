@@ -18,7 +18,17 @@ const LANGUAGES = [
 ];
 
 const Layout = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
+
+  // Returns true if user can see this nav section (any of the listed perms)
+  const canSee = (...perms) => perms.some(p => hasPermission(p));
+
+  // POS-only: user has POS but none of the broader management permissions
+  const broaderPerms = ['Sales','Stock','GRN','SIV','Accounting','Suppliers','Customers','Reports'];
+  const isPOSOnly = user && user.role !== 'Administrator' &&
+    !(Array.isArray(user.permissions) ? user.permissions : []).includes('Full Access') &&
+    (Array.isArray(user.permissions) ? user.permissions : []).includes('POS') &&
+    !broaderPerms.some(p => (Array.isArray(user.permissions) ? user.permissions : []).includes(p));
   const { language, changeLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,14 +168,16 @@ const Layout = () => {
         </div>
 
         <nav className="sidebar-nav">
-          {/* Dashboard */}
-          <div className={`nav-item ${isActive('/dashboard') ? 'active' : ''}`} onClick={() => navigate('/dashboard')}>
-            <FiGrid className="nav-icon" />
-            {!collapsed && <span>{t('dashboard')}</span>}
-          </div>
+          {/* Dashboard — hidden for POS-only users */}
+          {!isPOSOnly && (
+            <div className={`nav-item ${isActive('/dashboard') ? 'active' : ''}`} onClick={() => navigate('/dashboard')}>
+              <FiGrid className="nav-icon" />
+              {!collapsed && <span>{t('dashboard')}</span>}
+            </div>
+          )}
 
           {/* Sales Group */}
-          {collapsed ? (
+          {canSee('POS', 'Sales', 'Reports') && (collapsed ? (
             <div className={`nav-item ${isGroupActive(['/pos']) ? 'active' : ''}`} onClick={() => navigate('/pos')}>
               <FiShoppingCart className="nav-icon" />
             </div>
@@ -180,25 +192,33 @@ const Layout = () => {
               </div>
               {openGroups.pos && (
                 <div className="nav-children">
-                  <div className={`nav-item ${isActive('/pos') ? 'active' : ''}`} onClick={() => navigate('/pos')}>
-                    <FiShoppingCart className="nav-icon" /> <span>{t('pos')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/pos/sales-report') ? 'active' : ''}`} onClick={() => navigate('/pos/sales-report')}>
-                    <FiFileText className="nav-icon" /> <span>{t('salesReport')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/pos/sales-inventory') ? 'active' : ''}`} onClick={() => navigate('/pos/sales-inventory')}>
-                    <FiList className="nav-icon" /> <span>{t('salesInventory')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/pos/cash-report') ? 'active' : ''}`} onClick={() => navigate('/pos/cash-report')}>
-                    <FiDollarSign className="nav-icon" /> <span>{t('cashReport')}</span>
-                  </div>
+                  {canSee('POS', 'Sales') && (
+                    <div className={`nav-item ${isActive('/pos') ? 'active' : ''}`} onClick={() => navigate('/pos')}>
+                      <FiShoppingCart className="nav-icon" /> <span>{t('pos')}</span>
+                    </div>
+                  )}
+                  {canSee('Sales', 'Reports') && (
+                    <div className={`nav-item ${isActive('/pos/sales-report') ? 'active' : ''}`} onClick={() => navigate('/pos/sales-report')}>
+                      <FiFileText className="nav-icon" /> <span>{t('salesReport')}</span>
+                    </div>
+                  )}
+                  {canSee('Sales', 'Reports') && (
+                    <div className={`nav-item ${isActive('/pos/sales-inventory') ? 'active' : ''}`} onClick={() => navigate('/pos/sales-inventory')}>
+                      <FiList className="nav-icon" /> <span>{t('salesInventory')}</span>
+                    </div>
+                  )}
+                  {canSee('Sales', 'Reports') && (
+                    <div className={`nav-item ${isActive('/pos/cash-report') ? 'active' : ''}`} onClick={() => navigate('/pos/cash-report')}>
+                      <FiDollarSign className="nav-icon" /> <span>{t('cashReport')}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
-          )}
+          ))}
 
           {/* Stock Group */}
-          {!collapsed && (
+          {!collapsed && canSee('Stock', 'GRN', 'SIV') && (
             <>
               <div className={`nav-group-header ${isGroupActive(['/stock']) ? 'active' : ''}`} onClick={() => toggleGroup('stock')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -209,40 +229,58 @@ const Layout = () => {
               </div>
               {openGroups.stock && (
                 <div className="nav-children">
-                  <div className={`nav-item ${isActive('/stock/items') ? 'active' : ''}`} onClick={() => navigate('/stock/items')}>
-                    <FiFileText className="nav-icon" /> <span>{t('itemDetails')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/grn') ? 'active' : ''}`} onClick={() => navigate('/stock/grn')}>
-                    <FiDownload className="nav-icon" /> <span>{t('grn')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/siv') ? 'active' : ''}`} onClick={() => navigate('/stock/siv')}>
-                    <FiUpload className="nav-icon" /> <span>{t('siv')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/production') ? 'active' : ''}`} onClick={() => navigate('/stock/production')}>
-                    <FiTool className="nav-icon" /> <span>Production</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/sales-returns') ? 'active' : ''}`} onClick={() => navigate('/stock/sales-returns')}>
-                    <FiCornerDownLeft className="nav-icon" /> <span>Sales Returns</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/inventory') ? 'active' : ''}`} onClick={() => navigate('/stock/inventory')}>
-                    <FiList className="nav-icon" /> <span>{t('inventory')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/bin-card') ? 'active' : ''}`} onClick={() => navigate('/stock/bin-card')}>
-                    <FiList className="nav-icon" /> <span>{t('binCard')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/adjustments') ? 'active' : ''}`} onClick={() => navigate('/stock/adjustments')}>
-                    <FiSliders className="nav-icon" /> <span>{t('stockAdjustment')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/stock/categories') ? 'active' : ''}`} onClick={() => navigate('/stock/categories')}>
-                    <FiList className="nav-icon" /> <span>Categories</span>
-                  </div>
+                  {canSee('Stock') && (
+                    <div className={`nav-item ${isActive('/stock/items') ? 'active' : ''}`} onClick={() => navigate('/stock/items')}>
+                      <FiFileText className="nav-icon" /> <span>{t('itemDetails')}</span>
+                    </div>
+                  )}
+                  {canSee('GRN', 'Stock') && (
+                    <div className={`nav-item ${isActive('/stock/grn') ? 'active' : ''}`} onClick={() => navigate('/stock/grn')}>
+                      <FiDownload className="nav-icon" /> <span>{t('grn')}</span>
+                    </div>
+                  )}
+                  {canSee('SIV', 'Stock') && (
+                    <div className={`nav-item ${isActive('/stock/siv') ? 'active' : ''}`} onClick={() => navigate('/stock/siv')}>
+                      <FiUpload className="nav-icon" /> <span>{t('siv')}</span>
+                    </div>
+                  )}
+                  {canSee('SIV', 'Stock') && (
+                    <div className={`nav-item ${isActive('/stock/production') ? 'active' : ''}`} onClick={() => navigate('/stock/production')}>
+                      <FiTool className="nav-icon" /> <span>Production</span>
+                    </div>
+                  )}
+                  {canSee('SIV', 'Stock') && (
+                    <div className={`nav-item ${isActive('/stock/sales-returns') ? 'active' : ''}`} onClick={() => navigate('/stock/sales-returns')}>
+                      <FiCornerDownLeft className="nav-icon" /> <span>Sales Returns</span>
+                    </div>
+                  )}
+                  {canSee('Stock') && (
+                    <div className={`nav-item ${isActive('/stock/inventory') ? 'active' : ''}`} onClick={() => navigate('/stock/inventory')}>
+                      <FiList className="nav-icon" /> <span>{t('inventory')}</span>
+                    </div>
+                  )}
+                  {canSee('Stock') && (
+                    <div className={`nav-item ${isActive('/stock/bin-card') ? 'active' : ''}`} onClick={() => navigate('/stock/bin-card')}>
+                      <FiList className="nav-icon" /> <span>{t('binCard')}</span>
+                    </div>
+                  )}
+                  {canSee('Stock') && (
+                    <div className={`nav-item ${isActive('/stock/adjustments') ? 'active' : ''}`} onClick={() => navigate('/stock/adjustments')}>
+                      <FiSliders className="nav-icon" /> <span>{t('stockAdjustment')}</span>
+                    </div>
+                  )}
+                  {canSee('Stock') && (
+                    <div className={`nav-item ${isActive('/stock/categories') ? 'active' : ''}`} onClick={() => navigate('/stock/categories')}>
+                      <FiList className="nav-icon" /> <span>Categories</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
           )}
 
           {/* Accounting Group */}
-          {!collapsed && (
+          {!collapsed && canSee('Accounting') && (
             <>
               <div className={`nav-group-header ${isGroupActive(['/accounting']) ? 'active' : ''}`} onClick={() => toggleGroup('accounting')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -271,7 +309,7 @@ const Layout = () => {
           )}
 
           {/* Suppliers & Customers Group */}
-          {!collapsed && (
+          {!collapsed && canSee('Suppliers', 'Customers') && (
             <>
               <div className={`nav-group-header ${isGroupActive(['/suppliers-customers']) ? 'active' : ''}`} onClick={() => toggleGroup('suppliersCustomers')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -282,19 +320,23 @@ const Layout = () => {
               </div>
               {openGroups.suppliersCustomers && (
                 <div className="nav-children">
-                  <div className={`nav-item ${isActive('/suppliers-customers/suppliers') ? 'active' : ''}`} onClick={() => navigate('/suppliers-customers/suppliers')}>
-                    <FiUserPlus className="nav-icon" /> <span>{t('suppliers')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/suppliers-customers/customers') ? 'active' : ''}`} onClick={() => navigate('/suppliers-customers/customers')}>
-                    <FiUser className="nav-icon" /> <span>{t('customers')}</span>
-                  </div>
+                  {canSee('Suppliers') && (
+                    <div className={`nav-item ${isActive('/suppliers-customers/suppliers') ? 'active' : ''}`} onClick={() => navigate('/suppliers-customers/suppliers')}>
+                      <FiUserPlus className="nav-icon" /> <span>{t('suppliers')}</span>
+                    </div>
+                  )}
+                  {canSee('Customers') && (
+                    <div className={`nav-item ${isActive('/suppliers-customers/customers') ? 'active' : ''}`} onClick={() => navigate('/suppliers-customers/customers')}>
+                      <FiUser className="nav-icon" /> <span>{t('customers')}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
           )}
 
-          {/* Settings Group */}
-          {!collapsed && (
+          {/* Settings Group — hidden for POS-only users */}
+          {!collapsed && !isPOSOnly && (
             <>
               <div className={`nav-group-header ${isGroupActive(['/settings']) ? 'active' : ''}`} onClick={() => toggleGroup('settings')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -308,12 +350,16 @@ const Layout = () => {
                   <div className={`nav-item ${isActive('/settings/profile') ? 'active' : ''}`} onClick={() => navigate('/settings/profile')}>
                     <FiUser className="nav-icon" /> <span>{t('profile')}</span>
                   </div>
-                  <div className={`nav-item ${isActive('/settings/users') ? 'active' : ''}`} onClick={() => navigate('/settings/users')}>
-                    <FiUsers className="nav-icon" /> <span>{t('users')}</span>
-                  </div>
-                  <div className={`nav-item ${isActive('/setup') ? 'active' : ''}`} onClick={() => navigate('/setup')}>
-                    <FiCloud className="nav-icon" /> <span>Cloud Sync</span>
-                  </div>
+                  {user?.role === 'Administrator' && (
+                    <div className={`nav-item ${isActive('/settings/users') ? 'active' : ''}`} onClick={() => navigate('/settings/users')}>
+                      <FiUsers className="nav-icon" /> <span>{t('users')}</span>
+                    </div>
+                  )}
+                  {user?.role === 'Administrator' && (
+                    <div className={`nav-item ${isActive('/setup') ? 'active' : ''}`} onClick={() => navigate('/setup')}>
+                      <FiCloud className="nav-icon" /> <span>Cloud Sync</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>

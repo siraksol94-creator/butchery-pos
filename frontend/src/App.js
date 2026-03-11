@@ -35,6 +35,37 @@ const PrivateRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
+// Blocks page access if user lacks the required permission(s)
+// perms: array of permission strings — user needs at least one
+// adminOnly: true = only Administrators can access
+const PermRoute = ({ children, perms = [], adminOnly = false }) => {
+  const { user, hasPermission } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  const fallback = () => {
+    if (!user) return '/login';
+    const p = Array.isArray(user.permissions) ? user.permissions : [];
+    const posOnly = p.includes('POS') && !p.includes('Full Access') && !broaderPerms.some(b => p.includes(b));
+    return posOnly ? '/pos' : '/dashboard';
+  };
+  if (adminOnly && user.role !== 'Administrator') return <Navigate to={fallback()} />;
+  if (perms.length > 0 && !perms.some(p => hasPermission(p))) return <Navigate to={fallback()} />;
+  return children;
+};
+
+// Redirects to /pos if user only has POS permission, otherwise /dashboard
+const broaderPerms = ['Sales','Stock','GRN','SIV','Accounting','Suppliers','Customers','Reports'];
+const DefaultRedirect = () => {
+  const { user } = useAuth();
+  if (user && user.role !== 'Administrator') {
+    const perms = Array.isArray(user.permissions) ? user.permissions : [];
+    const isPOSOnly = perms.includes('POS') &&
+      !perms.includes('Full Access') &&
+      !broaderPerms.some(p => perms.includes(p));
+    if (isPOSOnly) return <Navigate to="/pos" />;
+  }
+  return <Navigate to="/dashboard" />;
+};
+
 function AppRoutes() {
   const [syncChecked, setSyncChecked]     = useState(false);
   const [isConfigured, setIsConfigured]   = useState(true); // optimistic default
@@ -93,29 +124,29 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/setup" element={<Setup onComplete={() => setIsConfigured(true)} />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route index element={<Navigate to="/dashboard" />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="pos" element={<POS />} />
-        <Route path="pos/sales-report" element={<SalesReport />} />
-        <Route path="pos/sales-inventory" element={<SalesInventory />} />
-        <Route path="pos/cash-report" element={<CashReport />} />
-        <Route path="stock/items" element={<ItemDetails />} />
-        <Route path="stock/grn" element={<GRN />} />
-        <Route path="stock/siv" element={<SIV />} />
-        <Route path="stock/inventory" element={<Inventory />} />
-        <Route path="stock/adjustments" element={<StockAdjustment />} />
-        <Route path="stock/categories" element={<Categories />} />
-        <Route path="stock/bin-card" element={<BinCard />} />
-        <Route path="stock/production" element={<Production />} />
-        <Route path="stock/sales-returns" element={<SalesReturn />} />
-        <Route path="accounting/cash-receipts" element={<CashReceipt />} />
-        <Route path="accounting/payment-vouchers" element={<PaymentVoucher />} />
-        <Route path="accounting/cash-book" element={<CashBook />} />
-        <Route path="accounting/account-payables" element={<AccountPayables />} />
-        <Route path="suppliers-customers/suppliers" element={<Suppliers />} />
-        <Route path="suppliers-customers/customers" element={<Customers />} />
+        <Route index element={<DefaultRedirect />} />
+        <Route path="dashboard" element={<PermRoute perms={['Sales','Stock','GRN','SIV','Accounting','Suppliers','Customers','Reports']}><Dashboard /></PermRoute>} />
+        <Route path="pos" element={<PermRoute perms={['POS','Sales']}><POS /></PermRoute>} />
+        <Route path="pos/sales-report" element={<PermRoute perms={['Sales','Reports']}><SalesReport /></PermRoute>} />
+        <Route path="pos/sales-inventory" element={<PermRoute perms={['Sales','Reports']}><SalesInventory /></PermRoute>} />
+        <Route path="pos/cash-report" element={<PermRoute perms={['Sales','Reports']}><CashReport /></PermRoute>} />
+        <Route path="stock/items" element={<PermRoute perms={['Stock','GRN','SIV']}><ItemDetails /></PermRoute>} />
+        <Route path="stock/grn" element={<PermRoute perms={['GRN','Stock']}><GRN /></PermRoute>} />
+        <Route path="stock/siv" element={<PermRoute perms={['SIV','Stock']}><SIV /></PermRoute>} />
+        <Route path="stock/inventory" element={<PermRoute perms={['Stock','GRN','SIV']}><Inventory /></PermRoute>} />
+        <Route path="stock/adjustments" element={<PermRoute perms={['Stock']}><StockAdjustment /></PermRoute>} />
+        <Route path="stock/categories" element={<PermRoute perms={['Stock']}><Categories /></PermRoute>} />
+        <Route path="stock/bin-card" element={<PermRoute perms={['Stock','GRN','SIV']}><BinCard /></PermRoute>} />
+        <Route path="stock/production" element={<PermRoute perms={['SIV','Stock']}><Production /></PermRoute>} />
+        <Route path="stock/sales-returns" element={<PermRoute perms={['SIV','Stock']}><SalesReturn /></PermRoute>} />
+        <Route path="accounting/cash-receipts" element={<PermRoute perms={['Accounting']}><CashReceipt /></PermRoute>} />
+        <Route path="accounting/payment-vouchers" element={<PermRoute perms={['Accounting']}><PaymentVoucher /></PermRoute>} />
+        <Route path="accounting/cash-book" element={<PermRoute perms={['Accounting']}><CashBook /></PermRoute>} />
+        <Route path="accounting/account-payables" element={<PermRoute perms={['Accounting']}><AccountPayables /></PermRoute>} />
+        <Route path="suppliers-customers/suppliers" element={<PermRoute perms={['Suppliers']}><Suppliers /></PermRoute>} />
+        <Route path="suppliers-customers/customers" element={<PermRoute perms={['Customers']}><Customers /></PermRoute>} />
         <Route path="settings/profile" element={<Profile />} />
-        <Route path="settings/users" element={<Users />} />
+        <Route path="settings/users" element={<PermRoute adminOnly><Users /></PermRoute>} />
       </Route>
     </Routes>
     </div>
