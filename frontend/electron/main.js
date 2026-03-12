@@ -39,9 +39,16 @@ ipcMain.handle('print-silent', (_event, html) => {
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
     win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
     win.webContents.once('did-finish-load', () => {
-      win.webContents.print({ silent: true, printBackground: true })
-        .then(() => { win.close(); resolve({ success: true }); })
-        .catch((err) => { win.close(); resolve({ success: false, reason: err.message }); });
+      const result = win.webContents.print({ silent: true, printBackground: true });
+      if (result && typeof result.then === 'function') {
+        // Electron 28+: print() returns a Promise
+        result
+          .then(() => { win.close(); resolve({ success: true }); })
+          .catch((err) => { win.close(); resolve({ success: false, reason: err.message }); });
+      } else {
+        // Older Electron: print() returns undefined, fire-and-forget
+        setTimeout(() => { win.close(); resolve({ success: true }); }, 1500);
+      }
     });
   });
 });
