@@ -52,6 +52,35 @@ router.post('/', auth, (req, res) => {
   }
 });
 
+// GET /api/orders/product-summary?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns total qty sold and revenue per product for active (non-reversed) orders
+router.get('/product-summary', (req, res) => {
+  try {
+    const { from, to } = req.query;
+    let sql = `
+      SELECT
+        oi.product_name,
+        SUM(oi.quantity) AS total_qty,
+        ROUND(SUM(oi.total_price) / SUM(oi.quantity), 2) AS avg_price,
+        SUM(oi.total_price) AS total_revenue
+      FROM order_items oi
+      INNER JOIN orders o ON o.id = oi.order_id
+      WHERE o.deleted_at IS NULL
+        AND o.status != 'Reversed'
+        AND oi.deleted_at IS NULL
+        AND (oi.reversed IS NULL OR oi.reversed = 0)
+    `;
+    const params = [];
+    if (from) { sql += ' AND DATE(o.created_at) >= ?'; params.push(from); }
+    if (to)   { sql += ' AND DATE(o.created_at) <= ?'; params.push(to); }
+    sql += ' GROUP BY oi.product_name ORDER BY total_revenue DESC';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get order details
 router.get('/:id', (req, res) => {
   try {

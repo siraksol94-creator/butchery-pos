@@ -72,6 +72,7 @@ export const createOrder = (data) => api.post('/orders', data);
 export const getOrder = (id) => api.get(`/orders/${id}`);
 export const reverseOrder = (id) => api.put(`/orders/${id}/reverse`);
 export const reverseOrderItem = (orderId, itemId) => api.put(`/orders/${orderId}/items/${itemId}/reverse`);
+export const getOrderProductSummary = (from, to) => api.get('/orders/product-summary', { params: { from, to } });
 
 // GRN
 export const getGRNs = () => api.get('/grn');

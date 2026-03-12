@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings } from '../services/api';
+import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings, getOrderProductSummary } from '../services/api';
 import { FiFileText, FiDollarSign, FiShoppingCart, FiCalendar, FiEye, FiRotateCcw, FiX, FiPrinter } from 'react-icons/fi';
 
 const today = new Date().toISOString().split('T')[0];
@@ -157,75 +157,70 @@ const SalesReport = () => {
       ? new Date(dateFrom).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
       : `${new Date(dateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${new Date(dateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-    const rows = filtered.map(o => {
-      const isReversed = o.status === 'Reversed';
-      const style = isReversed ? 'color:#999;text-decoration:line-through;' : '';
-      return `
-        <tr>
-          <td style="${style}">${o.order_number}</td>
-          <td style="${style}">${new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
-          <td style="text-align:right;${style}">$${parseFloat(o.total_amount).toFixed(2)}</td>
-          <td style="text-align:center;${isReversed ? 'color:#999;' : ''}font-weight:bold">${isReversed ? 'VOID' : 'OK'}</td>
-        </tr>`;
-    }).join('');
+    let products = [];
+    try {
+      const res = await getOrderProductSummary(dateFrom, dateTo);
+      products = res.data || [];
+    } catch (err) { /* skip */ }
+
+    const div = '='.repeat(42);
+    const productRows = products.map(p =>
+      `<tr>
+        <td style="padding-bottom:3px;font-weight:700">${p.product_name}</td>
+        <td style="text-align:right">${parseFloat(p.total_qty).toFixed(2)}</td>
+        <td style="text-align:right">K${parseFloat(p.avg_price).toFixed(2)}</td>
+        <td style="text-align:right;font-weight:700">K${parseFloat(p.total_revenue).toFixed(2)}</td>
+      </tr>`
+    ).join('');
+
+    const grandTotal = products.reduce((s, p) => s + parseFloat(p.total_revenue), 0);
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       @page { size: 80mm auto; margin: 3mm; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: monospace; font-size: 11px; width: 74mm; color: #000; }
-      .center { text-align: center; }
-      .bold { font-weight: bold; }
-      .big { font-size: 13px; }
-      .divider { border-top: 1px dashed #000; margin: 5px 0; }
-      .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
-      table { width: 100%; border-collapse: collapse; font-size: 10px; }
-      th { text-align: left; font-size: 9px; border-bottom: 1px solid #000; padding-bottom: 2px; }
-      th:last-child { text-align: center; }
-      th:nth-child(3) { text-align: right; }
+      body { font-family: 'Courier New', monospace; font-size: 11px; width: 74mm; color: #000; font-weight: 700; }
+      .c { text-align: center; }
+      .div { text-align: center; font-size: 10px; margin: 3px 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th { font-size: 9px; border-bottom: 1px solid #000; padding-bottom: 2px; }
+      th:not(:first-child) { text-align: right; }
       td { padding: 1px 0; vertical-align: top; }
-      td:nth-child(3) { text-align: right; }
-      td:nth-child(4) { text-align: center; }
-      .totals { margin-top: 4px; }
-      .total-line { display: flex; justify-content: space-between; margin-bottom: 2px; }
-      .total-big { font-size: 13px; font-weight: bold; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; }
-      .footer { text-align: center; margin-top: 8px; font-size: 10px; }
-    </style>
-    </head><body>
-      <div class="center bold big">${businessName}</div>
-      <div class="center" style="font-size:10px;margin-top:2px;">SALES REPORT</div>
-      <div class="center" style="font-size:10px;">${dateLabel}</div>
-      <div class="divider"></div>
-      <div class="row"><span>Total Orders</span><span class="bold">${activeOrders.length} (${filtered.length} incl. void)</span></div>
-      <div class="row"><span>Total Revenue</span><span class="bold">$${totalRevenue.toFixed(2)}</span></div>
-      <div class="row"><span>Total Subtotal</span><span>$${totalSubtotal.toFixed(2)}</span></div>
-      <div class="row"><span>Total Discounts</span><span>$${totalDiscount.toFixed(2)}</span></div>
-      <div class="divider"></div>
+      .summary { margin: 4px 0; }
+      .srow { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 11px; }
+      .grand { font-size: 14px; font-weight: 800; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; display: flex; justify-content: space-between; }
+      .footer { text-align: center; margin-top: 6px; font-size: 10px; }
+    </style></head><body>
+      <div class="c" style="font-size:14px;letter-spacing:1px">${businessName}</div>
+      <div class="div">${div}</div>
+      <div class="c" style="font-size:12px">SALES REPORT</div>
+      <div class="c" style="font-size:11px">${dateLabel}</div>
+      <div class="div">${div}</div>
+      <div class="summary">
+        <div class="srow"><span>Total Orders</span><span>${activeOrders.length} (${filtered.length} incl. void)</span></div>
+        <div class="srow"><span>Total Revenue</span><span>K${totalRevenue.toFixed(2)}</span></div>
+        <div class="srow"><span>Total Discounts</span><span>K${totalDiscount.toFixed(2)}</span></div>
+      </div>
+      <div class="div">${div}</div>
       <table>
         <thead><tr>
-          <th>Receipt#</th>
-          <th>Time</th>
-          <th style="text-align:right">Total</th>
-          <th style="text-align:center">St.</th>
+          <th style="text-align:left">PRODUCT</th>
+          <th>QTY</th>
+          <th>PRICE</th>
+          <th>TOTAL</th>
         </tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${productRows}</tbody>
       </table>
-      <div class="divider"></div>
-      <div class="total-line total-big"><span>TOTAL REVENUE</span><span>$${totalRevenue.toFixed(2)}</span></div>
-      <div class="footer">
-        Printed: ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-      </div>
+      <div class="div">${'-'.repeat(42)}</div>
+      <div class="grand"><span>GRAND TOTAL</span><span>K${grandTotal.toFixed(2)}</span></div>
+      <div class="footer">Printed: ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      const w = window.open('', '_blank', 'width=400,height=600');
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => { w.print(); }, 300);
-    }
+    const w = window.open('', '_blank', 'width=400,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   return (
