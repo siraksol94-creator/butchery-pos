@@ -141,15 +141,11 @@ const SalesReport = () => {
     <div class="c">Please come again.</div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      await window.electronAPI.printSilent(html);
-    } else {
-      const w = window.open('', '_blank', 'width=420,height=600');
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => { w.print(); }, 300);
-    }
+    const w = window.open('', '_blank', 'width=420,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   const handlePrintReport = async () => {
@@ -217,16 +213,11 @@ const SalesReport = () => {
       </div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      await window.electronAPI.printSilent(html);
-    } else {
-      const w = window.open('', '_blank', 'width=400,height=600');
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      w.print();
-      w.close();
-    }
+    const w = window.open('', '_blank', 'width=400,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   return (

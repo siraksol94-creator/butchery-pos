@@ -410,12 +410,6 @@ const POS = () => {
 </body>
 </html>`;
 
-    // In Electron: print silently to default printer (no dialog)
-    if (window.electronAPI && window.electronAPI.printSilent) {
-      window.electronAPI.printSilent(html);
-      return;
-    }
-    // Web fallback: open new window for print
     const w = window.open('', '_blank', 'width=420,height=600');
     w.document.write(html);
     w.document.close();
