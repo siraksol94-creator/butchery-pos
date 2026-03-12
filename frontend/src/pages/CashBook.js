@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCashBook, getCashBookStats, setOpeningBalance } from '../services/api';
-import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter } from 'react-icons/fi';
+import PrintPreview from '../components/PrintPreview';
 
 const CashBook = () => {
   const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPayments: 0, currentBalance: 0 });
@@ -9,6 +10,7 @@ const CashBook = () => {
   const [editingOB, setEditingOB] = useState(false);
   const [obInput, setObInput] = useState('');
   const [savingOB, setSavingOB] = useState(false);
+  const [previewHTML, setPreviewHTML] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -42,13 +44,74 @@ const CashBook = () => {
     payments: acc.payments + parseFloat(e.payment_amount || 0)
   }), { receipts: 0, payments: 0 });
 
+  const handlePrint = () => {
+    const div = '='.repeat(42);
+    const rows = [
+      `<tr><td>—</td><td>Opening Balance</td><td>OB</td><td>$${parseFloat(openingBal).toFixed(2)}</td><td></td><td>$${parseFloat(openingBal).toFixed(2)}</td></tr>`,
+      ...entries.map(e => `<tr>
+        <td>${new Date(e.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})}</td>
+        <td>${e.description || ''}</td>
+        <td>${e.reference || ''}</td>
+        <td>${parseFloat(e.receipt_amount) > 0 ? '$' + parseFloat(e.receipt_amount).toFixed(2) : ''}</td>
+        <td>${parseFloat(e.payment_amount) > 0 ? '$' + parseFloat(e.payment_amount).toFixed(2) : ''}</td>
+        <td>$${parseFloat(e.balance).toFixed(2)}</td>
+      </tr>`),
+      `<tr style="font-weight:700;border-top:1px solid #000"><td colspan="3" style="text-align:right">TOTALS:</td><td>$${totals.receipts.toFixed(2)}</td><td>$${totals.payments.toFixed(2)}</td><td>$${parseFloat(stats.currentBalance).toFixed(2)}</td></tr>`
+    ].join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      @page { size: 80mm auto; margin: 2mm 3mm; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 74mm; font-family: 'Courier New', monospace; font-size: 9px; color: #000; }
+      .c { text-align: center; }
+      .div { text-align: center; font-size: 8px; margin: 2px 0; overflow: hidden; white-space: nowrap; }
+      table { width: 100%; border-collapse: collapse; font-size: 8px; }
+      td { padding: 1px 1px; vertical-align: top; white-space: nowrap; }
+      td:nth-child(1) { width: 18%; }
+      td:nth-child(2) { width: 28%; overflow: hidden; max-width: 0; text-overflow: ellipsis; }
+      td:nth-child(3) { width: 14%; }
+      td:nth-child(4), td:nth-child(5), td:nth-child(6) { width: 13%; text-align: right; }
+    </style></head><body>
+    <div class="c" style="font-size:11px;font-weight:700">CASH BOOK</div>
+    <div class="div">${div}</div>
+    <div class="c" style="font-size:8px">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="div">${div}</div>
+    <table>
+      <thead><tr style="font-weight:700;border-bottom:1px solid #000">
+        <th style="text-align:left">DATE</th>
+        <th style="text-align:left">DESC</th>
+        <th style="text-align:left">REF</th>
+        <th style="text-align:right">CR</th>
+        <th style="text-align:right">PV</th>
+        <th style="text-align:right">BAL</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="div">${div}</div>
+    </body></html>`;
+
+    if (window.electronAPI?.printSilent) {
+      window.electronAPI.printSilent(html);
+    } else {
+      setPreviewHTML(html);
+    }
+  };
+
   return (
     <div className="page-content">
+      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="page-header">
         <div>
           <h1>Cash Book</h1>
           <p>Track all cash transactions (auto-generated from CR &amp; PV)</p>
         </div>
+        <button
+          onClick={handlePrint}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+        >
+          <FiPrinter size={15} /> Print
+        </button>
       </div>
 
       <div className="stat-cards">

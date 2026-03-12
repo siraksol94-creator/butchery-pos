@@ -412,7 +412,11 @@ const POS = () => {
 </body>
 </html>`;
 
-    setPreviewHTML(html);
+    if (window.electronAPI?.printSilent) {
+      window.electronAPI.printSilent(html);
+    } else {
+      setPreviewHTML(html);
+    }
   };
 
   const now = new Date();

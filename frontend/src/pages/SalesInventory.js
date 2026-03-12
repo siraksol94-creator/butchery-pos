@@ -231,7 +231,11 @@ const SalesInventory = () => {
       '</body></html>'
     ].join('');
 
-    setPreviewHTML(html);
+    if (window.electronAPI?.printSilent) {
+      window.electronAPI.printSilent(html);
+    } else {
+      setPreviewHTML(html);
+    }
   };
 
   return (

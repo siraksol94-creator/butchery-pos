@@ -63,6 +63,7 @@ const GRN = () => {
 
   // ── Product autocomplete ──────────────────────────────────────────
   const [openDropdownIdx, setOpenDropdownIdx] = useState(-1);
+  const [dropdownRect, setDropdownRect] = useState(null);
 
   // ── Quick-add supplier ────────────────────────────────────────────
   const [showAddSupplier, setShowAddSupplier]   = useState(false);
@@ -85,7 +86,7 @@ const GRN = () => {
     const fetchFormData = async () => {
       try {
         const [prodRes, supRes] = await Promise.all([getProducts(), getSuppliers()]);
-        if (prodRes.data?.length > 0) setProducts(prodRes.data.filter(p => p.product_type !== 'finished'));
+        if (prodRes.data?.length > 0) setProducts(prodRes.data);
         if (supRes.data?.length > 0)  setSuppliers(supRes.data);
       } catch (err) {}
     };
@@ -860,13 +861,13 @@ const GRN = () => {
                             setOpenDropdownIdx(idx);
                             if (addRowError) setAddRowError('');
                           }}
-                          onFocus={() => setOpenDropdownIdx(idx)}
+                          onFocus={e => { const r = e.target.getBoundingClientRect(); setDropdownRect({ top: r.bottom + 2, left: r.left, width: r.width }); setOpenDropdownIdx(idx); }}
                           onBlur={() => setTimeout(() => setOpenDropdownIdx(-1), 160)}
                           placeholder="Type or search product…"
                           style={{ width: '100%', padding: '8px 10px', border: `1px solid ${incomplete && !item.product_id ? '#f59e0b' : '#e5e7eb'}`, borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
                         />
-                        {openDropdownIdx === idx && (
-                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, maxHeight: 200, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.12)', marginTop: 2 }}>
+                        {openDropdownIdx === idx && dropdownRect && (
+                          <div style={{ position: 'fixed', top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, zIndex: 9999, background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, maxHeight: 200, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.12)' }}>
                             {products
                               .filter(p => !item.product_text || p.name.toLowerCase().includes(item.product_text.toLowerCase()))
                               .map(p => (
