@@ -3,7 +3,7 @@ import { getSalesInventory, saveSalesActualBalance } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   FiSearch, FiPackage, FiAlertTriangle, FiCalendar, FiSave,
-  FiCheckCircle, FiXCircle, FiEdit2, FiTrendingUp, FiDollarSign
+  FiCheckCircle, FiXCircle, FiEdit2, FiTrendingUp, FiDollarSign, FiPrinter
 } from 'react-icons/fi';
 
 const SalesInventory = () => {
@@ -194,6 +194,72 @@ const SalesInventory = () => {
     },
   ];
 
+  const handlePrintInventory = async () => {
+    const dateLabel = new Date(filterDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+    const rows = filtered.map(p => {
+      const r = computeRow(p);
+      const hasDiff = r.difference !== 0;
+      return `<tr>
+        <td>${p.name}</td>
+        <td style="text-align:right">${r.openingBalance}</td>
+        <td style="text-align:right">${r.input}</td>
+        <td style="text-align:right">${r.totalStock}</td>
+        <td style="text-align:right">${r.totalSales}</td>
+        <td style="text-align:right">${r.salesBalance}</td>
+        <td style="text-align:right">${actualBalances[p.id] !== undefined && actualBalances[p.id] !== '' ? parseFloat(actualBalances[p.id]).toFixed(2) : '-'}</td>
+        <td style="text-align:right;${hasDiff ? 'font-weight:bold;' : ''}">${r.difference !== 0 ? r.difference.toFixed(2) : '0.00'}</td>
+        <td style="text-align:right">$${r.totalSellingPrice.toFixed(2)}</td>
+        <td style="text-align:right">${reasons[p.id] || ''}</td>
+      </tr>`;
+    }).join('');
+
+    const printedAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const html = [
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
+      '@page{size:80mm auto;margin:3mm}',
+      '*{box-sizing:border-box;margin:0;padding:0}',
+      'body{font-family:monospace;font-size:9px;width:74mm;color:#000}',
+      '.c{text-align:center}.b{font-weight:bold}',
+      '.d{border-top:1px dashed #000;margin:4px 0}',
+      'table{width:100%;border-collapse:collapse;font-size:8px}',
+      'th{font-size:7px;border-bottom:1px solid #000;padding-bottom:1px;text-align:right}',
+      'th:first-child{text-align:left}',
+      'td{padding:1px 0;vertical-align:top;text-align:right}',
+      'td:first-child{text-align:left;max-width:20mm;word-break:break-word}',
+      '.tl{display:flex;justify-content:space-between;font-size:9px;margin-bottom:1px}',
+      '.tb{font-weight:bold;border-top:1px solid #000;padding-top:2px;margin-top:2px}',
+      '.ft{text-align:center;margin-top:6px;font-size:8px}',
+      '</style></head><body>',
+      '<div class="c b" style="font-size:12px">SALES INVENTORY</div>',
+      '<div class="c" style="font-size:9px">' + dateLabel + '</div>',
+      '<div class="d"></div>',
+      '<table><thead><tr>',
+      '<th>Product</th><th>Open</th><th>In</th><th>Stock</th><th>Sales</th><th>Bal.</th><th>Act.</th><th>Diff</th><th>Revenue</th><th>Reason</th>',
+      '</tr></thead><tbody>',
+      rows,
+      '</tbody></table>',
+      '<div class="d"></div>',
+      '<div class="tl tb"><span>TOTAL REVENUE</span><span>$' + summaryTotals.totalRevenue.toFixed(2) + '</span></div>',
+      '<div class="tl"><span>Total Cost</span><span>$' + summaryTotals.totalCost.toFixed(2) + '</span></div>',
+      '<div class="tl"><span>Profit</span><span>$' + summaryTotals.totalProfit.toFixed(2) + '</span></div>',
+      '<div class="tl"><span>Difference</span><span>$' + summaryTotals.totalDiff.toFixed(2) + '</span></div>',
+      '<div class="ft">Printed: ' + printedAt + '</div>',
+      '</body></html>'
+    ].join('');
+
+    if (window.electronAPI?.printSilent) {
+      await window.electronAPI.printSilent(html);
+    } else {
+      const w = window.open('', '_blank', 'width=400,height=600');
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      w.print();
+      w.close();
+    }
+  };
+
   return (
     <div className="page-content">
       <div className="page-header">
@@ -225,6 +291,12 @@ const SalesInventory = () => {
               {pendingCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={handlePrintInventory}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, backgroundColor: '#2563eb', color: 'white' }}
+        >
+          <FiPrinter size={17} /> Print
         </button>
       </div>
 

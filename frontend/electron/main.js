@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
+const { exec } = require('child_process');
 
 const logFile = path.join(os.tmpdir(), 'butchery-startup.log');
 function log(msg) {
@@ -10,6 +11,16 @@ function log(msg) {
 }
 
 log('main.js loaded');
+
+// Kill any process using port 5000 (prevents EADDRINUSE on restart)
+function killPort(port) {
+  return new Promise((resolve) => {
+    const cmd = process.platform === 'win32'
+      ? `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port}') do taskkill /PID %a /F`
+      : `lsof -ti:${port} | xargs kill -9`;
+    exec(cmd, () => setTimeout(resolve, 500));
+  });
+}
 
 let mainWindow;
 let splashWindow;
@@ -188,6 +199,7 @@ function checkForUpdate() {
 app.whenReady().then(async () => {
   log('app ready');
   createSplashWindow();
+  await killPort(5000);
   startBackend();
 
   // Minimum 8 seconds so company info on splash is readable
