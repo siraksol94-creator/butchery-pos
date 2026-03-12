@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings, getOrderProductSummary } from '../services/api';
 import { FiFileText, FiDollarSign, FiShoppingCart, FiCalendar, FiEye, FiRotateCcw, FiX, FiPrinter } from 'react-icons/fi';
-const today = new Date().toISOString().split('T')[0];
+const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
 
 const SalesReport = () => {
   const [orders, setOrders] = useState([]);
@@ -29,9 +29,10 @@ const SalesReport = () => {
   }, [fetchOrders]);
 
   const filtered = orders.filter(o => {
-    const orderDate = new Date(o.created_at);
-    if (dateFrom && orderDate < new Date(dateFrom)) return false;
-    if (dateTo && orderDate > new Date(dateTo + 'T23:59:59')) return false;
+    const od = new Date(o.created_at);
+    const orderLocalDate = `${od.getFullYear()}-${String(od.getMonth()+1).padStart(2,'0')}-${String(od.getDate()).padStart(2,'0')}`;
+    if (dateFrom && orderLocalDate < dateFrom) return false;
+    if (dateTo && orderLocalDate > dateTo) return false;
     return true;
   });
 
