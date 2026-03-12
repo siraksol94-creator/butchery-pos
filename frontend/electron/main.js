@@ -199,6 +199,20 @@ function checkForUpdate() {
 app.whenReady().then(async () => {
   log('app ready');
   createSplashWindow();
+
+  // Attach listener immediately — before killPort/startBackend so we never miss the event
+  const splashLoaded = new Promise(resolve => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      if (splashWindow.webContents.isLoading()) {
+        splashWindow.webContents.once('did-finish-load', resolve);
+      } else {
+        resolve(); // already loaded
+      }
+    } else {
+      resolve();
+    }
+  });
+
   await killPort(5000);
   startBackend();
 
@@ -206,14 +220,7 @@ app.whenReady().then(async () => {
   const minDelay    = new Promise(resolve => setTimeout(resolve, 8000));
   const backendReady = waitForBackend(30);
 
-  // Wait for splash HTML to load before injecting status text
-  await new Promise(resolve => {
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.webContents.once('did-finish-load', resolve);
-    } else {
-      resolve();
-    }
-  });
+  await splashLoaded;
 
   setSplashStatus('Starting backend...');
 
