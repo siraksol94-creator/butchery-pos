@@ -47,19 +47,33 @@ ipcMain.handle('check-for-updates', () => {
 // IPC: silent print (Promise-based API required for Electron 28+)
 ipcMain.handle('print-silent', (_event, html) => {
   return new Promise((resolve) => {
+    // Write HTML to a temp file — more reliable than data: URLs for large content
+    const tmpFile = path.join(os.tmpdir(), 'butchery-print-' + Date.now() + '.html');
+    try { fs.writeFileSync(tmpFile, html, 'utf8'); } catch (e) {
+      log('print-silent: failed to write temp file: ' + e.message);
+      return resolve({ success: false, reason: e.message });
+    }
+
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
-    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    win.loadFile(tmpFile);
     win.webContents.once('did-finish-load', () => {
       const result = win.webContents.print({ silent: true, printBackground: true });
+      const cleanup = () => { try { fs.unlinkSync(tmpFile); } catch (_) {} };
       if (result && typeof result.then === 'function') {
         // Electron 28+: print() returns a Promise
         result
-          .then(() => { win.close(); resolve({ success: true }); })
-          .catch((err) => { win.close(); resolve({ success: false, reason: err.message }); });
+          .then(() => { win.close(); cleanup(); resolve({ success: true }); })
+          .catch((err) => { win.close(); cleanup(); resolve({ success: false, reason: err.message }); });
       } else {
         // Older Electron: print() returns undefined, fire-and-forget
-        setTimeout(() => { win.close(); resolve({ success: true }); }, 1500);
+        setTimeout(() => { win.close(); cleanup(); resolve({ success: true }); }, 1500);
       }
+    });
+    win.webContents.once('did-fail-load', (_e, code, desc) => {
+      log('print-silent: did-fail-load: ' + code + ' ' + desc);
+      win.close();
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      resolve({ success: false, reason: desc });
     });
   });
 });
