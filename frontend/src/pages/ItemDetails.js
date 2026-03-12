@@ -145,8 +145,15 @@ const ItemDetails = () => {
   const filtered = items.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()) || i.code.toLowerCase().includes(search.toLowerCase()));
 
   const generateCode = () => {
-    const prefixMap = { '1': 'BF', '2': 'CH', '3': 'PK', '4': 'LM', '5': 'PR' };
-    const prefix = prefixMap[form.category_id] || 'IT';
+    // Derive prefix from category name: first letter + up to 2 consonants
+    const cat = dbCategories.find(c => String(c.id) === String(form.category_id));
+    const prefix = (() => {
+      if (!cat?.name) return 'IT';
+      const vowels = new Set(['A','E','I','O','U']);
+      const letters = cat.name.toUpperCase().replace(/[^A-Z]/g, '');
+      const consonantsAfterFirst = letters.slice(1).split('').filter(c => !vowels.has(c));
+      return (letters[0] + consonantsAfterFirst.join('')).substring(0, 3) || 'IT';
+    })();
     let num = 1;
     let code;
     do {
