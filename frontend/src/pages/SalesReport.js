@@ -83,6 +83,75 @@ const SalesReport = () => {
 
   const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const handlePrintReceipt = async (order) => {
+    const div = '='.repeat(42);
+    const itemRows = (order.items || []).map(item => `
+      <tr><td colspan="4" style="font-weight:700;padding-top:4px;${item.reversed ? 'text-decoration:line-through;color:#999;' : ''}">${item.product_name}${item.reversed ? ' [VOID]' : ''}</td></tr>
+      <tr style="${item.reversed ? 'color:#999;' : ''}">
+        <td></td>
+        <td style="text-align:center">${item.quantity} ${item.unit || ''}</td>
+        <td style="text-align:right">$${parseFloat(item.unit_price).toFixed(2)}</td>
+        <td style="text-align:right">$${parseFloat(item.total_price).toFixed(2)}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      @page { size: 80mm auto; margin: 2mm 3mm; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 74mm; font-family: 'Courier New', monospace; font-size: 11px; color: #000; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      td { padding: 1px 0; vertical-align: top; }
+      .c { text-align: center; }
+      .div { text-align: center; font-size: 10px; margin: 3px 0; overflow: hidden; white-space: nowrap; }
+      .grand { font-size: 16px; font-weight: 800; }
+      .amt { font-size: 13px; }
+    </style></head><body>
+    <div class="c" style="font-size:14px;letter-spacing:1px">${businessName}</div>
+    <div class="div">${div}</div>
+    <div class="c" style="font-size:12px">${order.status === 'Reversed' ? '*** REVERSED ***' : 'SALES RECEIPT'}</div>
+    <div class="div">${div}</div>
+    <table>
+      <tr><td>Receipt #:</td><td></td><td style="text-align:right" colspan="2">${order.order_number}</td></tr>
+      <tr><td>Date:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at).toLocaleDateString('en-GB')}</td></tr>
+      <tr><td>Time:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td></tr>
+      <tr><td>Customer:</td><td></td><td style="text-align:right" colspan="2">${order.customer_name || 'Walk-in'}</td></tr>
+      <tr><td>Payment:</td><td></td><td style="text-align:right" colspan="2">${order.payment_method || ''}</td></tr>
+    </table>
+    <div class="div">${div}</div>
+    <table>
+      <tr style="font-size:10px"><td style="width:42%">ITEM</td><td style="width:18%;text-align:center">QTY</td><td style="width:20%;text-align:right">PRICE</td><td style="width:20%;text-align:right">TOTAL</td></tr>
+      ${itemRows}
+    </table>
+    <div class="div">${'-'.repeat(42)}</div>
+    <table>
+      <tr><td>Subtotal</td><td></td><td></td><td style="text-align:right">$${parseFloat(order.subtotal).toFixed(2)}</td></tr>
+      ${parseFloat(order.discount) > 0 ? `<tr><td>Discount</td><td></td><td></td><td style="text-align:right">-$${parseFloat(order.discount).toFixed(2)}</td></tr>` : ''}
+    </table>
+    <div class="div">${div}</div>
+    <table>
+      <tr class="grand"><td>TOTAL</td><td></td><td></td><td style="text-align:right">$${parseFloat(order.total_amount).toFixed(2)}</td></tr>
+    </table>
+    <div class="div">${div}</div>
+    <table>
+      <tr class="amt"><td>Amt Received:</td><td></td><td></td><td style="text-align:right">$${parseFloat(order.amount_received || 0).toFixed(2)}</td></tr>
+      <tr class="amt"><td>${parseFloat(order.change_amount || 0) >= 0 ? '*** CHANGE ***' : '*** BAL DUE ***'}</td><td></td><td></td><td style="text-align:right">$${Math.abs(parseFloat(order.change_amount || 0)).toFixed(2)}</td></tr>
+    </table>
+    <div class="div">${div}</div>
+    <div class="c" style="margin-top:4px">Thank you for your purchase!</div>
+    <div class="c">Please come again.</div>
+    </body></html>`;
+
+    if (window.electronAPI?.printSilent) {
+      await window.electronAPI.printSilent(html);
+    } else {
+      const w = window.open('', '_blank', 'width=420,height=600');
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 300);
+    }
+  };
+
   const handlePrintReport = async () => {
     const dateLabel = dateFrom === dateTo
       ? new Date(dateFrom).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -629,7 +698,7 @@ const SalesReport = () => {
                   <button className="sr-btn-close" onClick={() => setViewOrder(null)}>
                     <FiX size={14} /> Close
                   </button>
-                  <button className="sr-btn-print" onClick={() => window.print()}>
+                  <button className="sr-btn-print" onClick={() => handlePrintReceipt(viewOrder)}>
                     <FiPrinter size={14} /> Print Receipt
                   </button>
                   {viewOrder.status !== 'Reversed' && (
