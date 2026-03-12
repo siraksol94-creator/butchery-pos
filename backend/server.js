@@ -275,13 +275,14 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS daily_actual_balance (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id     INTEGER NOT NULL REFERENCES products(id),
-    date           TEXT NOT NULL,
-    actual_balance REAL NOT NULL,
-    reason         TEXT,
-    created_by     INTEGER,
-    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id       INTEGER NOT NULL REFERENCES products(id),
+    product_sync_id  TEXT,
+    date             TEXT NOT NULL,
+    actual_balance   REAL NOT NULL,
+    reason           TEXT,
+    created_by       INTEGER,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(product_id, date)
   );
 `);
@@ -437,6 +438,11 @@ db.exec(`
   db.prepare(`UPDATE sales_return_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = sales_return_items.product_id) WHERE product_sync_id IS NULL`).run();
   // Backfill category_sync_id for products
   db.prepare(`UPDATE products SET category_sync_id = (SELECT sync_id FROM categories WHERE id = products.category_id) WHERE category_sync_id IS NULL AND category_id IS NOT NULL`).run();
+
+  // Add product_sync_id to daily_actual_balance + unique index for cross-device conflict resolution
+  addCol('daily_actual_balance', 'product_sync_id', 'TEXT');
+  db.prepare(`UPDATE daily_actual_balance SET product_sync_id = (SELECT sync_id FROM products WHERE id = daily_actual_balance.product_id) WHERE product_sync_id IS NULL`).run();
+  try { db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_dab_product_sync_date ON daily_actual_balance (product_sync_id, date) WHERE product_sync_id IS NOT NULL`).run(); } catch (_) {}
 
   // Backfill sync_id + tenant_id + branch_id + device_id for records created before sync was set up
   // Uses SQLite randomblob(16) for UUID generation — runs once per row, skips already-filled rows

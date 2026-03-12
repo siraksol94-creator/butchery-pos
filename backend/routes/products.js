@@ -131,11 +131,11 @@ router.put('/:id', auth, (req, res) => {
             ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
             req.params.id);
       // Sync the opening stock movement with the new current_stock value
-      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE product_id=? AND movement_type='opening' AND location='store' AND deleted_at IS NULL")
-        .run(req.params.id);
+      const product = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(req.params.id);
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE product_sync_id=? AND movement_type='opening' AND location='store' AND deleted_at IS NULL")
+        .run(product?.sync_id);
       if (parseFloat(current_stock) > 0) {
         const { tenantId, branchId, deviceId } = syncConfig.getConfig();
-        const product = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(req.params.id);
         db.prepare(
           `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`

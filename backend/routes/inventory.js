@@ -237,16 +237,18 @@ router.post('/sales/actual', (req, res) => {
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     db.transaction(() => {
       for (const entry of entries) {
+        const entryProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(entry.product_id);
+        const entryProductSyncId = entryProd?.sync_id || null;
         db.prepare(`
-          INSERT INTO daily_actual_balance (product_id, date, actual_balance, reason, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-          ON CONFLICT (product_id, date)
+          INSERT INTO daily_actual_balance (product_id, product_sync_id, date, actual_balance, reason, created_by, sync_id, tenant_id, branch_id, device_id, synced)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+          ON CONFLICT (product_sync_id, date)
           DO UPDATE SET actual_balance = excluded.actual_balance,
                         reason = excluded.reason,
                         created_by = excluded.created_by,
                         created_at = datetime('now'),
                         synced = 0
-        `).run(entry.product_id, date, entry.actual_balance, entry.reason || null, created_by,
+        `).run(entry.product_id, entryProductSyncId, date, entry.actual_balance, entry.reason || null, created_by,
                randomUUID(), tenantId, branchId, deviceId);
       }
     })();
