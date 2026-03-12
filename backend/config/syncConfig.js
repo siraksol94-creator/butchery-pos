@@ -7,6 +7,10 @@ function init(db) {
   if (!get('device_id')) {
     set('device_id', crypto.randomUUID());
   }
+  // Record the very first time this app is run (used for 14-day trial)
+  if (!get('install_date')) {
+    set('install_date', new Date().toISOString());
+  }
 }
 
 function get(key) {

@@ -214,6 +214,9 @@ app.whenReady().then(async () => {
   if (updateResult && updateResult.type === 'update-available') {
     setSplashStatus('Update available!');
 
+    // Lower splash so dialogs appear on top of it
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.setAlwaysOnTop(false);
+
     const { response } = await dialog.showMessageBox({
       type: 'info',
       title: 'Update Available',
@@ -232,6 +235,7 @@ app.whenReady().then(async () => {
 
       _autoUpdater.once('update-downloaded', async (info) => {
         setSplashStatus('Restarting to apply update...');
+        if (splashWindow && !splashWindow.isDestroyed()) splashWindow.setAlwaysOnTop(false);
         await dialog.showMessageBox({
           type: 'info',
           title: 'Update Ready',

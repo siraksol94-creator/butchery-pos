@@ -70,17 +70,24 @@ function AppRoutes() {
   const [syncChecked, setSyncChecked]     = useState(false);
   const [isConfigured, setIsConfigured]   = useState(true); // optimistic default
   const [licenseStatus, setLicenseStatus] = useState(null);
+  const [trialStatus, setTrialStatus]     = useState(null);
 
   useEffect(() => {
     fetch('/api/sync/status')
       .then(r => r.json())
       .then(data => {
         setIsConfigured(!!data.isConfigured);
-        // Check license if connected to cloud
         if (data.isConfigured && data.tenantId && data.tenantId !== 'local-only') {
+          // Cloud-registered: check license on VPS
           fetch(`https://butchery.sidanitsolutions.com/api/sync/license-status?tenantId=${data.tenantId}`)
             .then(r => r.json())
             .then(setLicenseStatus)
+            .catch(() => {});
+        } else {
+          // Local-only / offline: enforce 14-day trial
+          fetch('/api/sync/trial-status')
+            .then(r => r.json())
+            .then(setTrialStatus)
             .catch(() => {});
         }
       })
@@ -100,7 +107,7 @@ function AppRoutes() {
     return <Setup onComplete={() => setIsConfigured(true)} />;
   }
 
-  // License expired — block dashboard (login page still accessible for admin)
+  // Cloud license expired — block access
   if (licenseStatus?.isExpired) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fef2f2', padding: 32, textAlign: 'center' }}>
@@ -117,9 +124,30 @@ function AppRoutes() {
     );
   }
 
+  // 14-day trial expired — block access for local-only users
+  if (trialStatus?.trialApplicable && trialStatus?.isExpired) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fef2f2', padding: 32, textAlign: 'center' }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
+        <h1 style={{ color: '#dc2626', fontSize: 24, marginBottom: 8 }}>Trial Period Expired</h1>
+        <p style={{ color: '#7f1d1d', fontSize: 15, maxWidth: 420 }}>
+          Your 14-day free trial has ended. Please contact your software provider to activate a license.
+        </p>
+        <p style={{ color: '#6b7280', fontSize: 13, marginTop: 16 }}>
+          SIDANIT and Business Solutions<br />
+          +260 775 722 196 &nbsp;/&nbsp; +260 775 722 228<br />
+          www.sidanitsolutions.com
+        </p>
+        <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 24 }}>
+          Your data is safe and will be available once the license is activated.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <LicenseBanner licenseStatus={licenseStatus} />
+      <LicenseBanner licenseStatus={licenseStatus} trialStatus={trialStatus} />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/setup" element={<Setup onComplete={() => setIsConfigured(true)} />} />

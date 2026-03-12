@@ -348,6 +348,28 @@ router.get('/status', (req, res) => {
   }
 });
 
+// ─── GET /api/sync/trial-status ──────────────────────────────────────────────
+// Returns 14-day trial info for local-only (offline) users
+router.get('/trial-status', (_req, res) => {
+  try {
+    const cfg = syncConfig.getConfig();
+    // Cloud-registered tenants have a real license — trial doesn't apply
+    if (cfg.tenantId && cfg.tenantId !== 'local-only') {
+      return res.json({ trialApplicable: false });
+    }
+    const installDate = syncConfig.get('install_date');
+    const TRIAL_DAYS = 14;
+    if (!installDate) {
+      return res.json({ trialApplicable: true, daysUsed: 0, daysRemaining: TRIAL_DAYS, isExpired: false });
+    }
+    const daysUsed = Math.floor((Date.now() - new Date(installDate).getTime()) / (1000 * 60 * 60 * 24));
+    const daysRemaining = Math.max(0, TRIAL_DAYS - daysUsed);
+    res.json({ trialApplicable: true, daysUsed, daysRemaining, isExpired: daysRemaining <= 0, installDate });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ─── POST /api/sync/reset ────────────────────────────────────────────────────
 // Clears tenant_id + branch_id so the Setup screen appears on next reload
 router.post('/reset', (req, res) => {
