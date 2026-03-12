@@ -33,16 +33,15 @@ ipcMain.handle('check-for-updates', () => {
   return { error: 'Auto-updater not available' };
 });
 
-// IPC: silent print
+// IPC: silent print (Promise-based API required for Electron 28+)
 ipcMain.handle('print-silent', (_event, html) => {
   return new Promise((resolve) => {
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
     win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
     win.webContents.once('did-finish-load', () => {
-      win.webContents.print({ silent: true, printBackground: true }, (success, reason) => {
-        win.close();
-        resolve({ success, reason });
-      });
+      win.webContents.print({ silent: true, printBackground: true })
+        .then(() => { win.close(); resolve({ success: true }); })
+        .catch((err) => { win.close(); resolve({ success: false, reason: err.message }); });
     });
   });
 });
