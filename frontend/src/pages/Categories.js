@@ -260,7 +260,7 @@ const Categories = () => {
       </div>
 
       {/* Table */}
-      <div className="data-table-container">
+      <div className="data-table-container" style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
         <table className="data-table">
           <thead>
             <tr>
