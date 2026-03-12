@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getInventory, createOrder, getSettings } from '../services/api';
 import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
+import PrintPreview from '../components/PrintPreview';
 
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
@@ -34,6 +35,7 @@ const POS = () => {
   const [businessPhone, setBusinessPhone] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+  const [previewHTML, setPreviewHTML] = useState(null);
   const [showChangeBanner, setShowChangeBanner] = useState(false);
   const [barcodeMsg, setBarcodeMsg] = useState(null); // { text, type: 'error'|'success' }
   const [scannerActive, setScannerActive] = useState(true);
@@ -410,15 +412,7 @@ const POS = () => {
 </body>
 </html>`;
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      const w = window.open('', '_blank', 'width=420,height=600');
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => { w.print(); }, 300);
-    }
+    setPreviewHTML(html);
   };
 
   const now = new Date();
@@ -426,6 +420,7 @@ const POS = () => {
 
   return (
     <>
+      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="pos-layout no-print">
         {/* Products Section */}
         <div className="pos-products">

@@ -5,6 +5,7 @@ import {
   FiSearch, FiPackage, FiAlertTriangle, FiCalendar, FiSave,
   FiCheckCircle, FiXCircle, FiEdit2, FiTrendingUp, FiDollarSign, FiPrinter
 } from 'react-icons/fi';
+import PrintPreview from '../components/PrintPreview';
 
 const SalesInventory = () => {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ const SalesInventory = () => {
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const maxDate = new Date(Date.now() + 86400000).toISOString().split('T')[0]; // today + 1 day
   const [toast, setToast] = useState(null);
+  const [previewHTML, setPreviewHTML] = useState(null);
   const [savedRows, setSavedRows] = useState({});   // rows confirmed saved on server
   const [editingRows, setEditingRows] = useState({}); // rows user unlocked for re-edit
   const [otherModal, setOtherModal] = useState(null); // { productId, text }
@@ -229,19 +231,12 @@ const SalesInventory = () => {
       '</body></html>'
     ].join('');
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      const w = window.open('', '_blank', 'width=400,height=600');
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => { w.print(); }, 300);
-    }
+    setPreviewHTML(html);
   };
 
   return (
     <div className="page-content">
+      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="page-header">
         <div>
           <h1>Sales Inventory</h1>
