@@ -48,7 +48,7 @@ const LicenseBanner = ({ licenseStatus, trialStatus }) => {
       }}>
         <FiAlertTriangle size={16} />
         <strong>Free Trial</strong> — {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining.
-        Contact SIDANIT and Business Solutions to activate your license.
+        Contact SIDAN IT and Business Solutions to activate your license.
       </div>
     );
   }

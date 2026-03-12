@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getInventory, createOrder, getSettings } from '../services/api';
-import { FiSearch, FiShoppingCart, FiX, FiPlus, FiMinus, FiDollarSign } from 'react-icons/fi';
+import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
 
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
@@ -39,6 +39,8 @@ const POS = () => {
   const [scannerActive, setScannerActive] = useState(true);
   const [showNumpad, setShowNumpad] = useState(false);
   const [numpadValue, setNumpadValue] = useState('');
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, item }
+  const [qtyEdit, setQtyEdit] = useState(null);         // { item, value }
   const barcodeBuffer = useRef('');
 
   // Keyboard input for numpad modal
@@ -66,6 +68,15 @@ const POS = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [showNumpad, numpadValue]);
+
+  // Close context menu on any click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => { window.removeEventListener('click', close); };
+  }, [contextMenu]);
+
   const barcodeTimer = useRef(null);
 
   // Track whether an input is focused — update scannerActive accordingly
@@ -537,27 +548,24 @@ const POS = () => {
           ) : (
             <div className="cart-items">
               {cart.map(item => (
-                <div key={item.product_id} className="cart-item">
+                <div
+                  key={item.product_id}
+                  className="cart-item"
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, item }); }}
+                >
                   <div className="cart-item-info">
                     <h4>{item.product_name}</h4>
                     <p>K{item.unit_price} / {item.unit}</p>
                   </div>
                   <div className="cart-item-qty">
-                    <button onClick={() => updateQty(item.product_id, -1)}><FiMinus /></button>
-                    <input
-                      type="number"
-                      min="0.001"
-                      step="0.001"
-                      value={item.quantity}
-                      onChange={e => setItemQty(item.product_id, e.target.value)}
-                      style={{
-                        width: 64, textAlign: 'center',
-                        border: '1px solid #e5e7eb', borderRadius: 6,
-                        padding: '3px 4px', fontSize: 13, fontWeight: 600,
-                        outline: 'none'
-                      }}
-                    />
-                    <button onClick={() => updateQty(item.product_id, 1)}><FiPlus /></button>
+                    <span style={{
+                      minWidth: 64, textAlign: 'center', display: 'inline-block',
+                      border: '1px solid #e5e7eb', borderRadius: 6,
+                      padding: '3px 8px', fontSize: 13, fontWeight: 600,
+                      background: '#f9fafb', userSelect: 'none', cursor: 'default'
+                    }}>
+                      {item.quantity}
+                    </span>
                   </div>
                   <div className="cart-item-total">K{item.total_price.toFixed(2)}</div>
                   <button className="cart-item-remove" onClick={() => removeItem(item.product_id)}><FiX /></button>
@@ -885,6 +893,81 @@ const POS = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Right-click context menu ── */}
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed', top: contextMenu.y, left: contextMenu.x,
+            background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 9999,
+            minWidth: 180, overflow: 'hidden',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>
+            <div style={{ padding: '4px 14px', fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {contextMenu.item.product_name}
+            </div>
+          </div>
+          <button
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500 }}
+            onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            onClick={() => { setQtyEdit({ item: contextMenu.item, value: String(contextMenu.item.quantity) }); setContextMenu(null); }}
+          >
+            ✏️ Change Quantity
+          </button>
+          <button
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#dc2626', fontWeight: 500 }}
+            onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            onClick={() => { removeItem(contextMenu.item.product_id); setContextMenu(null); }}
+          >
+            🗑 Remove Item
+          </button>
+        </div>
+      )}
+
+      {/* ── Change Quantity modal ── */}
+      {qtyEdit && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setQtyEdit(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 280, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+            onClick={e => e.stopPropagation()}>
+            <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111827' }}>{qtyEdit.item.product_name}</h4>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#6b7280' }}>K{qtyEdit.item.unit_price} / {qtyEdit.item.unit}</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>New Quantity</label>
+            <input
+              autoFocus
+              type="number"
+              min="0.001"
+              step="0.001"
+              value={qtyEdit.value}
+              onChange={e => setQtyEdit(prev => ({ ...prev, value: e.target.value }))}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setItemQty(qtyEdit.item.product_id, qtyEdit.value);
+                  setQtyEdit(null);
+                } else if (e.key === 'Escape') {
+                  setQtyEdit(null);
+                }
+              }}
+              style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #2563eb', borderRadius: 8, fontSize: 16, fontWeight: 600, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer', fontSize: 13 }}
+                onClick={() => setQtyEdit(null)}
+              >Cancel</button>
+              <button
+                style={{ flex: 2, padding: '8px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                onClick={() => { setItemQty(qtyEdit.item.product_id, qtyEdit.value); setQtyEdit(null); }}
+              >Update</button>
+            </div>
+          </div>
         </div>
       )}
     </>

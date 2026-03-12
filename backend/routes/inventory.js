@@ -169,7 +169,7 @@ router.get('/sales', (req, res) => {
 
       LEFT JOIN (
         SELECT product_id, ABS(SUM(quantity)) AS total_sales
-        FROM stock_movements WHERE location = 'sales' AND movement_type = 'sale'
+        FROM stock_movements WHERE location = 'sales' AND movement_type IN ('sale', 'reverse')
           AND created_at >= @date AND created_at < date(@date, '+1 day')
         GROUP BY product_id
       ) sales_day_agg ON sales_day_agg.product_id = p.id

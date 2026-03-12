@@ -501,8 +501,8 @@ const SIV = () => {
 
       {/* ── New / Edit SIV Modal ──────────────────────────────────── */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal" style={{ maxWidth: 980, width: '95%' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px 20px 40px' }} onClick={() => setShowForm(false)}>
+          <div className="modal" style={{ maxWidth: 980, width: '95%', overflow: 'visible', maxHeight: 'none', marginTop: 20 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {editMode && (
@@ -675,7 +675,7 @@ const SIV = () => {
                                   style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
                                 />
                                 {openDropdownIdx === index && (
-                                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, maxHeight: 480, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', marginTop: 2 }}>
+                                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, maxHeight: '40vh', overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', marginTop: 2 }}>
                                     {products
                                       .filter(p => !item.product_text || p.name.toLowerCase().includes(item.product_text.toLowerCase()))
                                       .map((p, pi) => (
