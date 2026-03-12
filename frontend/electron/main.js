@@ -128,7 +128,7 @@ function createWindow() {
     mainWindow.show();
     if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
   });
-  mainWindow.webContents.on('did-fail-load', (e, code, desc) => {
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
     log('page FAILED: ' + code + ' ' + desc);
     mainWindow.show();
     if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
@@ -184,8 +184,8 @@ app.whenReady().then(async () => {
   createSplashWindow();
   startBackend();
 
-  // Minimum 5 seconds so company info on splash is readable
-  const minDelay    = new Promise(resolve => setTimeout(resolve, 5000));
+  // Minimum 8 seconds so company info on splash is readable
+  const minDelay    = new Promise(resolve => setTimeout(resolve, 8000));
   const backendReady = waitForBackend(30);
 
   // Wait for splash HTML to load before injecting status text
