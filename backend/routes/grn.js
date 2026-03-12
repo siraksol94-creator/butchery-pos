@@ -79,7 +79,7 @@ router.get('/stats', (req, res) => {
   try {
     const total = db.prepare('SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL').get();
     const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
-    const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_id) AS cnt FROM grn WHERE deleted_at IS NULL').get();
+    const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_sync_id) AS cnt FROM grn WHERE deleted_at IS NULL').get();
     const unpaid = db.prepare(`
       WITH supplier_paid AS (
         SELECT s.id AS supplier_id, COALESCE(SUM(pv.amount), 0) AS total_paid

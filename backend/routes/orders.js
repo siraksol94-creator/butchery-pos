@@ -67,7 +67,7 @@ router.get('/product-summary', (req, res) => {
         ROUND(SUM(oi.total_price) / SUM(oi.quantity), 2) AS avg_price,
         SUM(oi.total_price) AS total_revenue
       FROM order_items oi
-      INNER JOIN orders o ON o.id = oi.order_id
+      INNER JOIN orders o ON o.sync_id = oi.order_sync_id
       WHERE o.deleted_at IS NULL
         AND (o.status IS NULL OR o.status != 'Reversed')
         AND oi.deleted_at IS NULL
