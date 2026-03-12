@@ -197,21 +197,12 @@ const SalesInventory = () => {
   const handlePrintInventory = async () => {
     const dateLabel = new Date(filterDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-    const rows = filtered.map(p => {
+    const productLines = filtered.map(p => {
       const r = computeRow(p);
-      const hasDiff = r.difference !== 0;
-      return `<tr>
-        <td>${p.name}</td>
-        <td style="text-align:right">${r.openingBalance}</td>
-        <td style="text-align:right">${r.input}</td>
-        <td style="text-align:right">${r.totalStock}</td>
-        <td style="text-align:right">${r.totalSales}</td>
-        <td style="text-align:right">${r.salesBalance}</td>
-        <td style="text-align:right">${actualBalances[p.id] !== undefined && actualBalances[p.id] !== '' ? parseFloat(actualBalances[p.id]).toFixed(2) : '-'}</td>
-        <td style="text-align:right;${hasDiff ? 'font-weight:bold;' : ''}">${r.difference !== 0 ? r.difference.toFixed(2) : '0.00'}</td>
-        <td style="text-align:right">$${r.totalSellingPrice.toFixed(2)}</td>
-        <td style="text-align:right">${reasons[p.id] || ''}</td>
-      </tr>`;
+      return '<div class="prow">'
+        + '<span class="pname">' + p.name + '</span>'
+        + '<span class="pcalc">' + r.totalSales.toFixed(2) + ' x $' + r.sellingPrice.toFixed(2) + ' = <b>$' + r.totalSellingPrice.toFixed(2) + '</b></span>'
+        + '</div>';
     }).join('');
 
     const printedAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -219,31 +210,21 @@ const SalesInventory = () => {
       '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
       '@page{size:80mm auto;margin:3mm}',
       '*{box-sizing:border-box;margin:0;padding:0}',
-      'body{font-family:monospace;font-size:9px;width:74mm;color:#000}',
+      'body{font-family:monospace;font-size:10px;width:74mm;color:#000}',
       '.c{text-align:center}.b{font-weight:bold}',
-      '.d{border-top:1px dashed #000;margin:4px 0}',
-      'table{width:100%;border-collapse:collapse;font-size:8px}',
-      'th{font-size:7px;border-bottom:1px solid #000;padding-bottom:1px;text-align:right}',
-      'th:first-child{text-align:left}',
-      'td{padding:1px 0;vertical-align:top;text-align:right}',
-      'td:first-child{text-align:left;max-width:20mm;word-break:break-word}',
-      '.tl{display:flex;justify-content:space-between;font-size:9px;margin-bottom:1px}',
-      '.tb{font-weight:bold;border-top:1px solid #000;padding-top:2px;margin-top:2px}',
-      '.ft{text-align:center;margin-top:6px;font-size:8px}',
+      '.d{border-top:1px dashed #000;margin:5px 0}',
+      '.prow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}',
+      '.pname{font-weight:bold;font-size:10px;flex:1;margin-right:4px}',
+      '.pcalc{font-size:10px;text-align:right;white-space:nowrap}',
+      '.gt{display:flex;justify-content:space-between;font-size:12px;font-weight:bold;border-top:2px solid #000;padding-top:4px;margin-top:4px}',
+      '.ft{text-align:center;margin-top:8px;font-size:8px}',
       '</style></head><body>',
-      '<div class="c b" style="font-size:12px">SALES INVENTORY</div>',
+      '<div class="c b" style="font-size:13px">SALES INVENTORY</div>',
       '<div class="c" style="font-size:9px">' + dateLabel + '</div>',
       '<div class="d"></div>',
-      '<table><thead><tr>',
-      '<th>Product</th><th>Open</th><th>In</th><th>Stock</th><th>Sales</th><th>Bal.</th><th>Act.</th><th>Diff</th><th>Revenue</th><th>Reason</th>',
-      '</tr></thead><tbody>',
-      rows,
-      '</tbody></table>',
+      productLines,
       '<div class="d"></div>',
-      '<div class="tl tb"><span>TOTAL REVENUE</span><span>$' + summaryTotals.totalRevenue.toFixed(2) + '</span></div>',
-      '<div class="tl"><span>Total Cost</span><span>$' + summaryTotals.totalCost.toFixed(2) + '</span></div>',
-      '<div class="tl"><span>Profit</span><span>$' + summaryTotals.totalProfit.toFixed(2) + '</span></div>',
-      '<div class="tl"><span>Difference</span><span>$' + summaryTotals.totalDiff.toFixed(2) + '</span></div>',
+      '<div class="gt"><span>GRAND TOTAL</span><span>$' + summaryTotals.totalRevenue.toFixed(2) + '</span></div>',
       '<div class="ft">Printed: ' + printedAt + '</div>',
       '</body></html>'
     ].join('');

@@ -415,19 +415,12 @@ const POS = () => {
       window.electronAPI.printSilent(html);
       return;
     }
-    // Web fallback: hidden iframe print
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => {
-      iframe.contentWindow.print();
-      setTimeout(() => document.body.removeChild(iframe), 2000);
-    }, 300);
+    // Web fallback: open new window for print
+    const w = window.open('', '_blank', 'width=420,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   const now = new Date();
