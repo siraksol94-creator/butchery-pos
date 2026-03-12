@@ -9,7 +9,7 @@ router.get('/', auth, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT sr.*,
-        (SELECT COUNT(*) FROM sales_return_items WHERE return_id = sr.id) AS item_count
+        (SELECT COUNT(*) FROM sales_return_items WHERE return_sync_id = sr.sync_id) AS item_count
       FROM sales_returns sr
       WHERE sr.deleted_at IS NULL
       ORDER BY sr.date DESC, sr.id DESC
@@ -68,9 +68,9 @@ router.post('/', auth, (req, res) => {
         const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
         const productSyncId = prod?.sync_id || null;
         db.prepare(`
-          INSERT INTO sales_return_items (return_id, product_id, product_sync_id, quantity, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(returnId, item.product_id, productSyncId, qty, randomUUID(), tenantId, branchId, deviceId);
+          INSERT INTO sales_return_items (return_id, return_sync_id, product_id, product_sync_id, quantity, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(returnId, returnSyncId, item.product_id, productSyncId, qty, randomUUID(), tenantId, branchId, deviceId);
 
         // Remove from sales
         db.prepare(`
@@ -104,8 +104,8 @@ router.get('/:id', auth, (req, res) => {
     const items = db.prepare(`
       SELECT sri.*, p.name AS product_name, p.unit
       FROM sales_return_items sri
-      LEFT JOIN products p ON p.id = sri.product_id
-      WHERE sri.return_id = ?
+      LEFT JOIN products p ON p.sync_id = sri.product_sync_id
+      WHERE sri.return_sync_id = (SELECT sync_id FROM sales_returns WHERE id = ?)
     `).all(req.params.id);
     res.json({ ...entry, items });
   } catch (error) {
@@ -116,8 +116,10 @@ router.get('/:id', auth, (req, res) => {
 // DELETE /api/sales-returns/:id
 router.delete('/:id', auth, (req, res) => {
   try {
+    const ret = db.prepare('SELECT sync_id FROM sales_returns WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!ret) return res.status(404).json({ error: 'Sales return not found' });
     db.transaction(() => {
-      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='sales_return' AND deleted_at IS NULL").run(req.params.id);
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='sales_return' AND deleted_at IS NULL").run(ret.sync_id);
       db.prepare("UPDATE sales_returns SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(req.params.id);
     })();
     res.json({ message: 'Sales return deleted' });

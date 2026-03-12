@@ -35,9 +35,9 @@ router.post('/', auth, (req, res) => {
         const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
         const productSyncId = prod?.sync_id || null;
         db.prepare(
-          `INSERT INTO order_items (order_id, product_id, product_sync_id, product_name, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
-        ).run(orderId, item.product_id, productSyncId, item.product_name, item.quantity, item.unit_price, item.total_price,
+          `INSERT INTO order_items (order_id, order_sync_id, product_id, product_sync_id, product_name, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+        ).run(orderId, orderSyncId, item.product_id, productSyncId, item.product_name, item.quantity, item.unit_price, item.total_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
           `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
@@ -88,7 +88,7 @@ router.get('/product-summary', (req, res) => {
 router.get('/:id', (req, res) => {
   try {
     const order = db.prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ? AND deleted_at IS NULL').all(req.params.id);
+    const items = db.prepare('SELECT * FROM order_items WHERE order_sync_id = ? AND deleted_at IS NULL').all(order?.sync_id);
     res.json({ ...order, items });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -104,7 +104,7 @@ router.put('/:id/reverse', auth, (req, res) => {
       if (order.status === 'Reversed') throw Object.assign(new Error('Order already reversed'), { status: 400 });
 
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL').all(req.params.id);
+      const items = db.prepare('SELECT * FROM order_items WHERE order_sync_id = ? AND reversed = 0 AND deleted_at IS NULL').all(order.sync_id);
       for (const item of items) {
         db.prepare(
           `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
@@ -113,7 +113,7 @@ router.put('/:id/reverse', auth, (req, res) => {
               randomUUID(), tenantId, branchId, deviceId, order.sync_id);
       }
 
-      db.prepare("UPDATE order_items SET reversed = 1, reversed_at = datetime('now'), synced=0 WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL").run(req.params.id);
+      db.prepare("UPDATE order_items SET reversed = 1, reversed_at = datetime('now'), synced=0 WHERE order_sync_id = ? AND reversed = 0 AND deleted_at IS NULL").run(order.sync_id);
       db.prepare("UPDATE orders SET status = 'Reversed', synced=0 WHERE id = ?").run(req.params.id);
       return db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     })();
@@ -132,7 +132,7 @@ router.put('/:id/items/:itemId/reverse', auth, (req, res) => {
       if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
       if (order.status === 'Reversed') throw Object.assign(new Error('Order already fully reversed'), { status: 400 });
 
-      const item = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ? AND deleted_at IS NULL').get(req.params.itemId, req.params.id);
+      const item = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_sync_id = ? AND deleted_at IS NULL').get(req.params.itemId, order.sync_id);
       if (!item) throw Object.assign(new Error('Item not found in this order'), { status: 404 });
       if (item.reversed) throw Object.assign(new Error('Item already reversed'), { status: 400 });
 
@@ -148,7 +148,7 @@ router.put('/:id/items/:itemId/reverse', auth, (req, res) => {
       const newSubtotal = Math.max(0, parseFloat(order.subtotal) - parseFloat(item.total_price));
       const newTotal = Math.max(0, parseFloat(order.total_amount) - parseFloat(item.total_price));
 
-      const remaining = db.prepare('SELECT COUNT(*) AS cnt FROM order_items WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL').get(req.params.id);
+      const remaining = db.prepare('SELECT COUNT(*) AS cnt FROM order_items WHERE order_sync_id = ? AND reversed = 0 AND deleted_at IS NULL').get(order.sync_id);
       const allReversed = remaining.cnt === 0;
 
       db.prepare('UPDATE orders SET subtotal = ?, total_amount = ?, status = ?, synced=0 WHERE id = ?').run(
@@ -156,7 +156,7 @@ router.put('/:id/items/:itemId/reverse', auth, (req, res) => {
       );
 
       const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
-      const allItems = db.prepare('SELECT * FROM order_items WHERE order_id = ? AND deleted_at IS NULL').all(req.params.id);
+      const allItems = db.prepare('SELECT * FROM order_items WHERE order_sync_id = ? AND deleted_at IS NULL').all(order.sync_id);
       return { ...updatedOrder, items: allItems };
     })();
 

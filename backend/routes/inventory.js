@@ -18,7 +18,7 @@ const balanceSQL = `
     COALESCE(prod_in_agg.total_prod_in, 0) AS total_prod_in,
     COALESCE(siv_agg.total_out, 0) AS total_out
   FROM products p
-  LEFT JOIN categories c ON p.category_id = c.id
+  LEFT JOIN categories c ON p.category_sync_id = c.sync_id
   LEFT JOIN (
     SELECT product_sync_id, SUM(quantity) AS store_balance
     FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
@@ -81,7 +81,7 @@ router.get('/store', (req, res) => {
           ELSE COALESCE(reprocess_agg.available_for_reprocessing, 0)
         END AS available_for_reprocessing
       FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN categories c ON p.category_sync_id = c.sync_id
       LEFT JOIN (
         SELECT product_sync_id, SUM(quantity) AS store_balance
         FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
@@ -149,10 +149,10 @@ router.get('/sales', (req, res) => {
         today_actual.reason AS saved_reason
 
       FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN categories c ON p.category_sync_id = c.sync_id
 
       LEFT JOIN daily_actual_balance prev_actual
-        ON prev_actual.product_id = p.id AND prev_actual.date = date(@date, '-1 day')
+        ON prev_actual.product_sync_id = p.sync_id AND prev_actual.date = date(@date, '-1 day')
 
       LEFT JOIN (
         SELECT product_sync_id, SUM(quantity) AS opening_balance
@@ -194,7 +194,7 @@ router.get('/sales', (req, res) => {
       ) order_rev ON order_rev.product_sync_id = p.sync_id
 
       LEFT JOIN daily_actual_balance today_actual
-        ON today_actual.product_id = p.id AND today_actual.date = @date
+        ON today_actual.product_sync_id = p.sync_id AND today_actual.date = @date
 
       WHERE p.deleted_at IS NULL AND (
         COALESCE(all_sales_agg.sales_balance, 0) != 0
@@ -221,7 +221,7 @@ router.get('/sales/siv-breakdown', (req, res) => {
       FROM stock_movements sm
       JOIN siv s ON s.sync_id = sm.reference_sync_id
       WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
-        AND sm.product_id = ? AND s.date = ? AND sm.deleted_at IS NULL
+        AND sm.product_sync_id = (SELECT sync_id FROM products WHERE id = ?) AND s.date = ? AND sm.deleted_at IS NULL
       ORDER BY sm.created_at ASC
     `).all(product_id, date);
     res.json(rows);
@@ -281,14 +281,18 @@ router.get('/bin-card', (req, res) => {
     const pid = parseInt(product_id);
 
     // Opening balance: sum of ALL store movements BEFORE the `from` date
-    let obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements WHERE product_id = ? AND location = 'store'`;
-    const obParams = [pid];
+    const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(pid);
+    const pidSync = pidSyncRow?.sync_id;
+
+    let obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements WHERE product_sync_id = ? AND location = 'store'`;
+    const obParams = [pidSync];
     if (from) { obSql += ' AND created_at < ?'; obParams.push(from); }
+    obSql += ' AND deleted_at IS NULL';
     const obRow = db.prepare(obSql).get(...obParams);
     const openingBalance = parseFloat(obRow.opening_balance);
 
     // Main bin-card query using named params
-    const namedParams = { product_id: pid, opening_balance: openingBalance };
+    const namedParams = { product_sync_id: pidSync, opening_balance: openingBalance };
     let sql = `
       SELECT
         sm.id,
@@ -305,7 +309,7 @@ router.get('/bin-card', (req, res) => {
       LEFT JOIN grn g        ON g.sync_id  = sm.reference_sync_id AND sm.reference_type = 'grn'
       LEFT JOIN siv sv       ON sv.sync_id = sm.reference_sync_id AND sm.reference_type = 'siv'
       LEFT JOIN production pr ON pr.sync_id = sm.reference_sync_id AND sm.reference_type = 'production'
-      WHERE sm.product_id = @product_id AND sm.location = 'store' AND sm.deleted_at IS NULL
+      WHERE sm.product_sync_id = @product_sync_id AND sm.location = 'store' AND sm.deleted_at IS NULL
     `;
     if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }
     if (to)   { sql += " AND sm.created_at < date(@to, '+1 day')"; namedParams.to = to; }

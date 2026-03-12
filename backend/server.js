@@ -424,7 +424,8 @@ db.exec(`
   addCol('order_items',        'product_sync_id', 'TEXT');
   addCol('production_inputs',  'product_sync_id', 'TEXT');
   addCol('production_outputs', 'product_sync_id', 'TEXT');
-  addCol('sales_return_items', 'product_sync_id', 'TEXT');
+  addCol('sales_return_items',  'product_sync_id', 'TEXT');
+  addCol('stock_adjustments',   'product_sync_id', 'TEXT');
   // Add category_sync_id to products
   addCol('products', 'category_sync_id', 'TEXT');
 
@@ -436,8 +437,29 @@ db.exec(`
   db.prepare(`UPDATE production_inputs SET product_sync_id = (SELECT sync_id FROM products WHERE id = production_inputs.product_id) WHERE product_sync_id IS NULL`).run();
   db.prepare(`UPDATE production_outputs SET product_sync_id = (SELECT sync_id FROM products WHERE id = production_outputs.product_id) WHERE product_sync_id IS NULL`).run();
   db.prepare(`UPDATE sales_return_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = sales_return_items.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_adjustments SET product_sync_id = (SELECT sync_id FROM products WHERE id = stock_adjustments.product_id) WHERE product_sync_id IS NULL`).run();
   // Backfill category_sync_id for products
   db.prepare(`UPDATE products SET category_sync_id = (SELECT sync_id FROM categories WHERE id = products.category_id) WHERE category_sync_id IS NULL AND category_id IS NOT NULL`).run();
+
+  // Add supplier_sync_id to grn
+  addCol('grn', 'supplier_sync_id', 'TEXT');
+  db.prepare(`UPDATE grn SET supplier_sync_id = (SELECT sync_id FROM suppliers WHERE id = grn.supplier_id) WHERE supplier_sync_id IS NULL AND supplier_id IS NOT NULL`).run();
+
+  // Add production_sync_id to production_inputs and production_outputs for cross-device DELETE
+  addCol('production_inputs',  'production_sync_id', 'TEXT');
+  addCol('production_outputs', 'production_sync_id', 'TEXT');
+  db.prepare(`UPDATE production_inputs SET production_sync_id = (SELECT sync_id FROM production WHERE id = production_inputs.production_id) WHERE production_sync_id IS NULL`).run();
+  db.prepare(`UPDATE production_outputs SET production_sync_id = (SELECT sync_id FROM production WHERE id = production_outputs.production_id) WHERE production_sync_id IS NULL`).run();
+
+  // Add parent sync_id to item tables for cross-device DELETE/UPDATE operations
+  addCol('siv_items',   'siv_sync_id',   'TEXT');
+  addCol('grn_items',   'grn_sync_id',   'TEXT');
+  addCol('order_items', 'order_sync_id', 'TEXT');
+  db.prepare(`UPDATE siv_items   SET siv_sync_id   = (SELECT sync_id FROM siv    WHERE id = siv_items.siv_id)     WHERE siv_sync_id   IS NULL`).run();
+  db.prepare(`UPDATE grn_items   SET grn_sync_id   = (SELECT sync_id FROM grn    WHERE id = grn_items.grn_id)     WHERE grn_sync_id   IS NULL`).run();
+  db.prepare(`UPDATE order_items SET order_sync_id = (SELECT sync_id FROM orders WHERE id = order_items.order_id) WHERE order_sync_id IS NULL`).run();
+  addCol('sales_return_items', 'return_sync_id', 'TEXT');
+  db.prepare(`UPDATE sales_return_items SET return_sync_id = (SELECT sync_id FROM sales_returns WHERE id = sales_return_items.return_id) WHERE return_sync_id IS NULL`).run();
 
   // Add product_sync_id to daily_actual_balance + unique index for cross-device conflict resolution
   addCol('daily_actual_balance', 'product_sync_id', 'TEXT');

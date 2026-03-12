@@ -9,10 +9,10 @@ router.get('/', auth, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT p.*,
-        (SELECT COUNT(*) FROM production_inputs WHERE production_id = p.id AND deleted_at IS NULL) AS input_count,
-        (SELECT COUNT(*) FROM production_outputs WHERE production_id = p.id AND deleted_at IS NULL) AS output_count,
-        (SELECT COALESCE(SUM(total_cost), 0) FROM production_inputs WHERE production_id = p.id AND deleted_at IS NULL) AS total_input_cost,
-        (SELECT COALESCE(SUM(quantity), 0) FROM production_outputs WHERE production_id = p.id AND deleted_at IS NULL) AS total_output_qty
+        (SELECT COUNT(*) FROM production_inputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS input_count,
+        (SELECT COUNT(*) FROM production_outputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS output_count,
+        (SELECT COALESCE(SUM(total_cost), 0) FROM production_inputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS total_input_cost,
+        (SELECT COALESCE(SUM(quantity), 0) FROM production_outputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS total_output_qty
       FROM production p
       WHERE p.deleted_at IS NULL
       ORDER BY p.date DESC, p.id DESC
@@ -42,15 +42,15 @@ router.get('/:id', auth, (req, res) => {
     const inputs = db.prepare(`
       SELECT pi.*, p.name AS product_name, p.unit
       FROM production_inputs pi
-      LEFT JOIN products p ON p.id = pi.product_id
-      WHERE pi.production_id = ? AND pi.deleted_at IS NULL
-    `).all(req.params.id);
+      LEFT JOIN products p ON p.sync_id = pi.product_sync_id
+      WHERE pi.production_sync_id = ? AND pi.deleted_at IS NULL
+    `).all(entry.sync_id);
     const outputs = db.prepare(`
       SELECT po.*, p.name AS product_name, p.unit
       FROM production_outputs po
-      LEFT JOIN products p ON p.id = po.product_id
-      WHERE po.production_id = ? AND po.deleted_at IS NULL
-    `).all(req.params.id);
+      LEFT JOIN products p ON p.sync_id = po.product_sync_id
+      WHERE po.production_sync_id = ? AND po.deleted_at IS NULL
+    `).all(entry.sync_id);
     res.json({ ...entry, inputs, outputs });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -90,9 +90,9 @@ router.post('/', auth, (req, res) => {
         const inputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(input.product_id);
         const inputSyncId = inputProd?.sync_id || null;
         db.prepare(`
-          INSERT INTO production_inputs (production_id, product_id, product_sync_id, quantity, unit_cost, total_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(prodId, input.product_id, inputSyncId, qty, unitCost, qty * unitCost,
+          INSERT INTO production_inputs (production_id, production_sync_id, product_id, product_sync_id, quantity, unit_cost, total_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(prodId, prodSyncId, input.product_id, inputSyncId, qty, unitCost, qty * unitCost,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
           INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
@@ -108,9 +108,9 @@ router.post('/', auth, (req, res) => {
         const outputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(output.product_id);
         const outputSyncId = outputProd?.sync_id || null;
         db.prepare(`
-          INSERT INTO production_outputs (production_id, product_id, product_sync_id, quantity, allocated_cost_per_unit, total_allocated_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(prodId, output.product_id, outputSyncId, qty, allocated, qty * allocated,
+          INSERT INTO production_outputs (production_id, production_sync_id, product_id, product_sync_id, quantity, allocated_cost_per_unit, total_allocated_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(prodId, prodSyncId, output.product_id, outputSyncId, qty, allocated, qty * allocated,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
           INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
@@ -120,7 +120,7 @@ router.post('/', auth, (req, res) => {
         // Update cost_price using weighted average across production runs
         if (allocated > 0) {
           const existing = db.prepare('SELECT cost_price FROM products WHERE id = ?').get(output.product_id);
-          const balRow = db.prepare("SELECT COALESCE(SUM(quantity), 0) AS bal FROM stock_movements WHERE product_id = ? AND location = 'store' AND deleted_at IS NULL").get(output.product_id);
+          const balRow = db.prepare("SELECT COALESCE(SUM(quantity), 0) AS bal FROM stock_movements WHERE product_sync_id = ? AND location = 'store' AND deleted_at IS NULL").get(outputSyncId);
           const existingQty = Math.max(0, parseFloat(balRow.bal) - qty); // balance before this run
           const existingCost = parseFloat(existing?.cost_price) || 0;
           const weightedAvg = (existingQty + qty) > 0
@@ -142,14 +142,16 @@ router.post('/', auth, (req, res) => {
 // DELETE /api/production/:id
 router.delete('/:id', auth, (req, res) => {
   try {
+    const prod = db.prepare('SELECT sync_id FROM production WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!prod) return res.status(404).json({ error: 'Not found' });
     db.transaction(() => {
-      // Reverse stock movements by soft-deleting them
-      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='production' AND deleted_at IS NULL")
-        .run(req.params.id);
-      db.prepare("UPDATE production_inputs SET deleted_at=datetime('now'), synced=0 WHERE production_id=?")
-        .run(req.params.id);
-      db.prepare("UPDATE production_outputs SET deleted_at=datetime('now'), synced=0 WHERE production_id=?")
-        .run(req.params.id);
+      // Use sync_id for cross-device FK integrity
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='production' AND deleted_at IS NULL")
+        .run(prod.sync_id);
+      db.prepare("UPDATE production_inputs SET deleted_at=datetime('now'), synced=0 WHERE production_sync_id=?")
+        .run(prod.sync_id);
+      db.prepare("UPDATE production_outputs SET deleted_at=datetime('now'), synced=0 WHERE production_sync_id=?")
+        .run(prod.sync_id);
       db.prepare("UPDATE production SET deleted_at=datetime('now'), synced=0 WHERE id=?")
         .run(req.params.id);
     })();

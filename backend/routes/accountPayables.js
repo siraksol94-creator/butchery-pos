@@ -24,14 +24,14 @@ router.get('/', (req, res) => {
         END AS status
       FROM suppliers s
       LEFT JOIN (
-        SELECT supplier_id,
+        SELECT supplier_sync_id,
           SUM(total_amount) AS total_amount,
           COUNT(*) AS grn_count,
           MAX(date) AS last_grn_date
         FROM grn
         WHERE deleted_at IS NULL
-        GROUP BY supplier_id
-      ) grn_totals ON s.id = grn_totals.supplier_id
+        GROUP BY supplier_sync_id
+      ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
         SELECT paid_to,
           SUM(amount) AS total_paid,
@@ -59,9 +59,9 @@ router.get('/stats', (req, res) => {
         COALESCE(SUM(grn_totals.total_amount), 0) - COALESCE(SUM(pv_totals.total_paid), 0) AS outstanding
       FROM suppliers s
       LEFT JOIN (
-        SELECT supplier_id, SUM(total_amount) AS total_amount
-        FROM grn WHERE deleted_at IS NULL GROUP BY supplier_id
-      ) grn_totals ON s.id = grn_totals.supplier_id
+        SELECT supplier_sync_id, SUM(total_amount) AS total_amount
+        FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
+      ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
         SELECT paid_to, SUM(amount) AS total_paid
         FROM payment_vouchers WHERE category = 'Supplier' AND deleted_at IS NULL
@@ -74,9 +74,9 @@ router.get('/stats', (req, res) => {
     const unpaid = db.prepare(`
       SELECT COUNT(*) AS cnt FROM suppliers s
       INNER JOIN (
-        SELECT supplier_id, SUM(total_amount) AS total_amount
-        FROM grn WHERE deleted_at IS NULL GROUP BY supplier_id
-      ) grn_totals ON s.id = grn_totals.supplier_id
+        SELECT supplier_sync_id, SUM(total_amount) AS total_amount
+        FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
+      ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
         SELECT paid_to, SUM(amount) AS total_paid
         FROM payment_vouchers WHERE category = 'Supplier' AND deleted_at IS NULL

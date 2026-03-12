@@ -39,7 +39,7 @@ router.get('/', (req, res) => {
                      ELSE p.cost_price
                    END as avg_cost_price
                  FROM products p
-                 LEFT JOIN categories c ON p.category_id = c.id
+                 LEFT JOIN categories c ON p.category_sync_id = c.sync_id
                  LEFT JOIN (
                    SELECT product_sync_id, SUM(quantity) as store_balance
                    FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
@@ -77,7 +77,7 @@ router.get('/:id', (req, res) => {
   try {
     const row = db.prepare(
       `SELECT p.*, c.name as category_name FROM products p
-       LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ? AND p.deleted_at IS NULL`
+       LEFT JOIN categories c ON p.category_sync_id = c.sync_id WHERE p.id = ? AND p.deleted_at IS NULL`
     ).get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Product not found' });
     res.json(row);

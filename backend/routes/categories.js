@@ -61,7 +61,7 @@ router.put('/:id', (req, res) => {
 router.delete('/all', (req, res) => {
   try {
     db.transaction(() => {
-      db.prepare("UPDATE products SET category_id = NULL, synced=0, updated_at=datetime('now') WHERE category_id IS NOT NULL AND deleted_at IS NULL").run();
+      db.prepare("UPDATE products SET category_id = NULL, category_sync_id = NULL, synced=0, updated_at=datetime('now') WHERE category_id IS NOT NULL AND deleted_at IS NULL").run();
       db.prepare("UPDATE categories SET deleted_at=datetime('now'), synced=0 WHERE deleted_at IS NULL").run();
     })();
     res.json({ message: 'All categories deleted' });
@@ -101,7 +101,7 @@ router.post('/import', csvUpload.single('file'), (req, res) => {
 router.delete('/:id', (req, res) => {
   try {
     db.transaction(() => {
-      db.prepare('UPDATE products SET category_id = NULL WHERE category_id = ?').run(req.params.id);
+      db.prepare("UPDATE products SET category_id = NULL, category_sync_id = NULL, synced=0, updated_at=datetime('now') WHERE category_id = ?").run(req.params.id);
       db.prepare("UPDATE categories SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(req.params.id);
     })();
     res.json({ message: 'Category deleted' });

@@ -215,7 +215,7 @@ const POS = () => {
     const hasSalesStock = parseFloat(p.sales_balance || 0) > 0;
     const matchCategory = selectedCategory === 'All' || p.category_name === selectedCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return hasSalesStock && matchCategory && matchSearch;
+    return matchCategory && matchSearch;
   });
 
   const addToCart = (product, qty = 1) => {
@@ -494,7 +494,7 @@ const POS = () => {
               const salesBalance = parseFloat(product.sales_balance || 0);
               return (
                 <div key={product.id} className="product-card" onClick={() => addToCart(product)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: salesBalance <= 0 ? 0.45 : 1 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span className={`badge ${getCategoryClass(product.category_name)}`} style={{ fontSize: 10 }}>
                       {product.category_name}

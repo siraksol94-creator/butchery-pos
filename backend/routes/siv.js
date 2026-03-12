@@ -51,8 +51,8 @@ router.post('/', auth, (req, res) => {
         const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
         const productSyncId = prod?.sync_id || null;
         db.prepare(
-          "INSERT INTO siv_items (siv_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
-        ).run(sivId, item.product_id, productSyncId, item.quantity, item.unit_price, item.quantity * item.unit_price,
+          "INSERT INTO siv_items (siv_id, siv_sync_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
+        ).run(sivId, sivSyncId, item.product_id, productSyncId, item.quantity, item.unit_price, item.quantity * item.unit_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
           `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
@@ -82,14 +82,14 @@ router.get('/items-summary', (req, res) => {
         SUM(si.quantity) AS total_quantity,
         SUM(si.total_price) AS total_value
       FROM siv_items si
-      JOIN siv s ON s.id = si.siv_id
-      JOIN products p ON p.id = si.product_id
+      JOIN siv s ON s.sync_id = si.siv_sync_id
+      JOIN products p ON p.sync_id = si.product_sync_id
       WHERE s.deleted_at IS NULL
     `;
     const params = [];
     if (from) { sql += ' AND s.date >= ?'; params.push(from); }
     if (to)   { sql += ' AND s.date <= ?'; params.push(to); }
-    sql += ' GROUP BY p.id, p.name, p.unit ORDER BY p.name ASC';
+    sql += ' GROUP BY p.sync_id, p.name, p.unit ORDER BY p.name ASC';
     const rows = db.prepare(sql).all(...params);
     res.json(rows);
   } catch (error) {
@@ -104,8 +104,8 @@ router.get('/item-breakdown', (req, res) => {
     let sql = `
       SELECT s.siv_number, s.date, s.created_at, si.quantity, si.unit_price, si.total_price
       FROM siv_items si
-      JOIN siv s ON s.id = si.siv_id
-      WHERE si.product_id = ? AND s.deleted_at IS NULL
+      JOIN siv s ON s.sync_id = si.siv_sync_id
+      WHERE si.product_sync_id = (SELECT sync_id FROM products WHERE id = ?) AND s.deleted_at IS NULL
     `;
     const params = [product_id];
     if (from) { sql += ' AND s.date >= ?'; params.push(from); }
@@ -122,7 +122,7 @@ router.get('/:id', (req, res) => {
   try {
     const siv = db.prepare('SELECT * FROM siv WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     const items = db.prepare(
-      'SELECT si.*, p.name as product_name, p.unit FROM siv_items si LEFT JOIN products p ON si.product_id = p.id WHERE si.siv_id = ?'
+      'SELECT si.*, p.name as product_name, p.unit FROM siv_items si LEFT JOIN products p ON si.product_sync_id = p.sync_id WHERE si.siv_sync_id = (SELECT sync_id FROM siv WHERE id = ?)'
     ).all(req.params.id);
     res.json({ ...siv, items });
   } catch (error) {
@@ -142,17 +142,17 @@ router.put('/:id', auth, (req, res) => {
       db.prepare("UPDATE siv SET date=?, department=?, total_items=?, total_value=?, notes=?, updated_at=datetime('now'), synced=0 WHERE id=?").run(
         sivDate, department, items.length, totalValue, notes, sivId
       );
-      db.prepare('DELETE FROM siv_items WHERE siv_id=?').run(sivId);
-      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='siv' AND deleted_at IS NULL").run(sivId);
-
       const sivRecord = db.prepare('SELECT sync_id FROM siv WHERE id=?').get(sivId);
       const sivSyncId = sivRecord?.sync_id;
+
+      db.prepare('DELETE FROM siv_items WHERE siv_sync_id=?').run(sivSyncId);
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='siv' AND deleted_at IS NULL").run(sivSyncId);
 
       for (const item of items) {
         const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
         const productSyncId = prod?.sync_id || null;
-        db.prepare("INSERT INTO siv_items (siv_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
-          sivId, item.product_id, productSyncId, item.quantity, item.unit_price || 0, item.quantity * (item.unit_price || 0),
+        db.prepare("INSERT INTO siv_items (siv_id, siv_sync_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
+          sivId, sivSyncId, item.product_id, productSyncId, item.quantity, item.unit_price || 0, item.quantity * (item.unit_price || 0),
           randomUUID(), tenantId, branchId, deviceId
         );
         db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,'store','siv',?,?,'siv',?,?,?,?,?,0,datetime('now'),datetime('now'),?)`).run(
@@ -173,9 +173,11 @@ router.put('/:id', auth, (req, res) => {
 
 router.delete('/:id', auth, (req, res) => {
   try {
+    const siv = db.prepare('SELECT sync_id FROM siv WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    if (!siv) return res.status(404).json({ error: 'SIV not found' });
     db.transaction(() => {
-      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='siv' AND deleted_at IS NULL").run(req.params.id);
-      db.prepare("UPDATE siv_items SET deleted_at=datetime('now'), synced=0 WHERE siv_id=?").run(req.params.id);
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='siv' AND deleted_at IS NULL").run(siv.sync_id);
+      db.prepare("UPDATE siv_items SET deleted_at=datetime('now'), synced=0 WHERE siv_sync_id=?").run(siv.sync_id);
       db.prepare("UPDATE siv SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(req.params.id);
     })();
     res.json({ message: 'SIV deleted' });

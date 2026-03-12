@@ -22,8 +22,8 @@ router.get('/', (req, res) => {
     const salesByCategory = db.prepare(
       `SELECT c.name AS category, COALESCE(SUM(oi.total_price),0) AS total
        FROM order_items oi
-       JOIN products p ON oi.product_id = p.id
-       JOIN categories c ON p.category_id = c.id
+       JOIN products p ON oi.product_sync_id = p.sync_id
+       JOIN categories c ON p.category_sync_id = c.sync_id
        GROUP BY c.name ORDER BY total DESC`
     ).all();
     const salesTrend = db.prepare(
