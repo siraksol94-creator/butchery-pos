@@ -410,11 +410,15 @@ const POS = () => {
 </body>
 </html>`;
 
-    const w = window.open('', '_blank', 'width=420,height=600');
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 300);
+    if (window.electronAPI?.printSilent) {
+      window.electronAPI.printSilent(html);
+    } else {
+      const w = window.open('', '_blank', 'width=420,height=600');
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 300);
+    }
   };
 
   const now = new Date();
