@@ -57,7 +57,7 @@ ipcMain.handle('print-silent', (_event, html) => {
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
     win.loadFile(tmpFile);
     win.webContents.once('did-finish-load', () => {
-      const result = win.webContents.print({ silent: true, printBackground: true });
+      const result = win.webContents.print({ silent: true, printBackground: true, deviceName: 'POS-80' });
       const cleanup = () => { try { fs.unlinkSync(tmpFile); } catch (_) {} };
       if (result && typeof result.then === 'function') {
         // Electron 28+: print() returns a Promise
