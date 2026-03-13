@@ -5,7 +5,10 @@ const PrintPreview = ({ html, onClose }) => {
   const iframeRef = useRef();
 
   const handlePrint = () => {
-    if (iframeRef.current) {
+    if (window.electronAPI?.printSilent) {
+      window.electronAPI.printSilent(html);
+      onClose();
+    } else if (iframeRef.current) {
       iframeRef.current.contentWindow.focus();
       iframeRef.current.contentWindow.print();
     }

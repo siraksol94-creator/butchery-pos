@@ -295,20 +295,6 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
-// Silent print: create a hidden BrowserWindow, load HTML, print silently, then close
-ipcMain.handle('print-silent', async (event, html) => {
-  return new Promise((resolve) => {
-    const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
-    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    win.webContents.once('did-finish-load', () => {
-      win.webContents.print({ silent: true, printBackground: true, deviceName: 'POS-80' }, (success, reason) => {
-        win.close();
-        resolve({ success, reason });
-      });
-    });
-  });
-});
-
 app.on('window-all-closed', () => {
   log('window-all-closed');
   if (process.platform !== 'darwin') app.quit();

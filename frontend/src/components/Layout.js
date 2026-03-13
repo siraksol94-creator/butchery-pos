@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { version } from '../../package.json';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -379,6 +380,7 @@ const Layout = () => {
             <button className="logout-btn" onClick={() => { logout(); navigate('/login'); }}>
               <FiLogOut /> {t('logout')}
             </button>
+            <p style={{ fontSize: 10, color: '#475569', textAlign: 'center', marginTop: 4 }}>v{version}</p>
           </div>
         )}
       </div>

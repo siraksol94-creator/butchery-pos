@@ -91,11 +91,7 @@ const CashBook = () => {
     <div class="div">${div}</div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      setPreviewHTML(html);
-    }
+    setPreviewHTML(html);
   };
 
   return (

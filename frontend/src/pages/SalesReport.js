@@ -143,11 +143,7 @@ const SalesReport = () => {
     <div class="c">Please come again.</div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      setPreviewHTML(html);
-    }
+    setPreviewHTML(html);
   };
 
   const handlePrintReport = async () => {
@@ -214,11 +210,7 @@ const SalesReport = () => {
       <div class="footer">Printed: ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
     </body></html>`;
 
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-    } else {
-      setPreviewHTML(html);
-    }
+    setPreviewHTML(html);
   };
 
   return (
