@@ -245,6 +245,10 @@ router.post('/push', (req, res) => {
             const setClause = updateCols.map(c => `${c} = ?`).join(', ');
             const values = [...updateCols.map(c => row[c]), row.sync_id];
             db.prepare(`UPDATE ${table} SET ${setClause} WHERE sync_id = ?`).run(...values);
+            // Re-stamp with VPS time so other devices' pull filters pick up this change
+            if (hasUpdatedAt) {
+              db.prepare(`UPDATE ${table} SET updated_at = datetime('now') WHERE sync_id = ?`).run(row.sync_id);
+            }
           }
         }
       }
