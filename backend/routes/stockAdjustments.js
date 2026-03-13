@@ -65,10 +65,12 @@ router.post('/', auth, (req, res) => {
             adjSyncId, tenantId, branchId, deviceId);
 
       const stockDelta = adjustment_type === 'increase' ? qty : -qty;
+      const adjProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(product_id);
+      const adjProductSyncId = adjProd?.sync_id || null;
       db.prepare(
-        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-         VALUES (?, 'store', 'adjustment', ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'), ?)`
-      ).run(product_id, stockDelta, info.lastInsertRowid, reason || null, req.user.id,
+        `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+         VALUES (?, ?, 'store', 'adjustment', ?, ?, 'adjustment', ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'), ?)`
+      ).run(product_id, adjProductSyncId, stockDelta, info.lastInsertRowid, reason || null, req.user.id,
             randomUUID(), tenantId, branchId, deviceId, adjSyncId);
 
       db.prepare(

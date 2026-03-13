@@ -134,14 +134,16 @@ router.post('/', auth, (req, res) => {
       const grnId = info.lastInsertRowid;
 
       for (const item of items) {
+        const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
+        const productSyncId = prod?.sync_id || null;
         db.prepare(
-          "INSERT INTO grn_items (grn_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
-        ).run(grnId, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price,
+          "INSERT INTO grn_items (grn_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))"
+        ).run(grnId, item.product_id, productSyncId, item.quantity, item.unit_price, item.quantity * item.unit_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`
-        ).run(item.product_id, 'store', 'grn', item.quantity, grnId, 'grn', req.user.id,
+          `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`
+        ).run(item.product_id, productSyncId, 'store', 'grn', item.quantity, grnId, 'grn', req.user.id,
               randomUUID(), tenantId, branchId, deviceId, grnSyncId);
       }
 
@@ -214,11 +216,13 @@ router.put('/:id', auth, (req, res) => {
       for (const item of validItems) {
         const qty = parseFloat(item.quantity);
         const price = parseFloat(item.unit_price);
-        db.prepare("INSERT INTO grn_items (grn_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
-          id, item.product_id, qty, price, qty * price, randomUUID(), tenantId, branchId, deviceId
+        const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
+        const productSyncId = prod?.sync_id || null;
+        db.prepare("INSERT INTO grn_items (grn_id, product_id, product_sync_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
+          id, item.product_id, productSyncId, qty, price, qty * price, randomUUID(), tenantId, branchId, deviceId
         );
-        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,'store','grn',?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`).run(
-          item.product_id, qty, id, 'grn', req.user.id, randomUUID(), tenantId, branchId, deviceId, grnSyncId
+        db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,'store','grn',?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`).run(
+          item.product_id, productSyncId, qty, id, 'grn', req.user.id, randomUUID(), tenantId, branchId, deviceId, grnSyncId
         );
       }
     })();

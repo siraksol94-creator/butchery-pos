@@ -416,6 +416,28 @@ db.exec(`
   db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM stock_adjustments WHERE id = stock_movements.reference_id) WHERE reference_type = 'adjustment' AND reference_sync_id IS NULL`).run();
   db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM sales_returns WHERE id = stock_movements.reference_id) WHERE reference_type = 'sales_return' AND reference_sync_id IS NULL`).run();
 
+  // Add product_sync_id to stock_movements and all item tables
+  addCol('stock_movements',    'product_sync_id', 'TEXT');
+  addCol('grn_items',          'product_sync_id', 'TEXT');
+  addCol('siv_items',          'product_sync_id', 'TEXT');
+  addCol('order_items',        'product_sync_id', 'TEXT');
+  addCol('production_inputs',  'product_sync_id', 'TEXT');
+  addCol('production_outputs', 'product_sync_id', 'TEXT');
+  addCol('sales_return_items', 'product_sync_id', 'TEXT');
+  // Add category_sync_id to products
+  addCol('products', 'category_sync_id', 'TEXT');
+
+  // Backfill product_sync_id (runs once; skips already-filled rows)
+  db.prepare(`UPDATE stock_movements SET product_sync_id = (SELECT sync_id FROM products WHERE id = stock_movements.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE grn_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = grn_items.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE siv_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = siv_items.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE order_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = order_items.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE production_inputs SET product_sync_id = (SELECT sync_id FROM products WHERE id = production_inputs.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE production_outputs SET product_sync_id = (SELECT sync_id FROM products WHERE id = production_outputs.product_id) WHERE product_sync_id IS NULL`).run();
+  db.prepare(`UPDATE sales_return_items SET product_sync_id = (SELECT sync_id FROM products WHERE id = sales_return_items.product_id) WHERE product_sync_id IS NULL`).run();
+  // Backfill category_sync_id for products
+  db.prepare(`UPDATE products SET category_sync_id = (SELECT sync_id FROM categories WHERE id = products.category_id) WHERE category_sync_id IS NULL AND category_id IS NOT NULL`).run();
+
   // Backfill sync_id + tenant_id + branch_id + device_id for records created before sync was set up
   // Uses SQLite randomblob(16) for UUID generation — runs once per row, skips already-filled rows
   for (const t of allTables) {

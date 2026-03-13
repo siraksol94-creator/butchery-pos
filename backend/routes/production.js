@@ -87,15 +87,17 @@ router.post('/', auth, (req, res) => {
       for (const input of inputs) {
         const qty = parseFloat(input.quantity);
         const unitCost = parseFloat(input.unit_cost || 0);
+        const inputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(input.product_id);
+        const inputSyncId = inputProd?.sync_id || null;
         db.prepare(`
-          INSERT INTO production_inputs (production_id, product_id, quantity, unit_cost, total_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(prodId, input.product_id, qty, unitCost, qty * unitCost,
+          INSERT INTO production_inputs (production_id, product_id, product_sync_id, quantity, unit_cost, total_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(prodId, input.product_id, inputSyncId, qty, unitCost, qty * unitCost,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
-        `).run(input.product_id, 'store', 'production_input', -qty, prodId, 'production',
+          INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
+        `).run(input.product_id, inputSyncId, 'store', 'production_input', -qty, prodId, 'production',
                notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prodSyncId);
       }
 
@@ -103,15 +105,17 @@ router.post('/', auth, (req, res) => {
       for (const output of outputs) {
         const qty = parseFloat(output.quantity);
         const allocated = costPerKg;
+        const outputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(output.product_id);
+        const outputSyncId = outputProd?.sync_id || null;
         db.prepare(`
-          INSERT INTO production_outputs (production_id, product_id, quantity, allocated_cost_per_unit, total_allocated_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(prodId, output.product_id, qty, allocated, qty * allocated,
+          INSERT INTO production_outputs (production_id, product_id, product_sync_id, quantity, allocated_cost_per_unit, total_allocated_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(prodId, output.product_id, outputSyncId, qty, allocated, qty * allocated,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
-        `).run(output.product_id, 'store', 'production_output', qty, prodId, 'production',
+          INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
+        `).run(output.product_id, outputSyncId, 'store', 'production_output', qty, prodId, 'production',
                notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prodSyncId);
         // Update cost_price using weighted average across production runs
         if (allocated > 0) {

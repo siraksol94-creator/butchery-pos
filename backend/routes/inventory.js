@@ -20,33 +20,33 @@ const balanceSQL = `
   FROM products p
   LEFT JOIN categories c ON p.category_id = c.id
   LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS store_balance
-    FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
-  ) store_agg ON store_agg.product_id = p.id
+    SELECT product_sync_id, SUM(quantity) AS store_balance
+    FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) store_agg ON store_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS sales_balance
-    FROM stock_movements WHERE location = 'sales' AND deleted_at IS NULL GROUP BY product_id
-  ) sales_agg ON sales_agg.product_id = p.id
+    SELECT product_sync_id, SUM(quantity) AS sales_balance
+    FROM stock_movements WHERE location = 'sales' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) sales_agg ON sales_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS opening_balance
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL GROUP BY product_id
-  ) opening_agg ON opening_agg.product_id = p.id
+    SELECT product_sync_id, SUM(quantity) AS opening_balance
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) opening_agg ON opening_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS total_in
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'grn' AND deleted_at IS NULL GROUP BY product_id
-  ) grn_agg ON grn_agg.product_id = p.id
+    SELECT product_sync_id, SUM(quantity) AS total_in
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'grn' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) grn_agg ON grn_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, SUM(quantity) AS total_prod_out
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_output' AND deleted_at IS NULL GROUP BY product_id
-  ) prod_out_agg ON prod_out_agg.product_id = p.id
+    SELECT product_sync_id, SUM(quantity) AS total_prod_out
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_output' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) prod_out_agg ON prod_out_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, ABS(SUM(quantity)) AS total_prod_in
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_input' AND deleted_at IS NULL GROUP BY product_id
-  ) prod_in_agg ON prod_in_agg.product_id = p.id
+    SELECT product_sync_id, ABS(SUM(quantity)) AS total_prod_in
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'production_input' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) prod_in_agg ON prod_in_agg.product_sync_id = p.sync_id
   LEFT JOIN (
-    SELECT product_id, ABS(SUM(quantity)) AS total_out
-    FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' AND deleted_at IS NULL GROUP BY product_id
-  ) siv_agg ON siv_agg.product_id = p.id
+    SELECT product_sync_id, ABS(SUM(quantity)) AS total_out
+    FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+  ) siv_agg ON siv_agg.product_sync_id = p.sync_id
   WHERE p.deleted_at IS NULL
   ORDER BY p.name
 `;
@@ -83,30 +83,30 @@ router.get('/store', (req, res) => {
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS store_balance
-        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
-      ) store_agg ON store_agg.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS store_balance
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) store_agg ON store_agg.product_sync_id = p.sync_id
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS opening_balance
-        FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL GROUP BY product_id
-      ) opening_agg ON opening_agg.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS opening_balance
+        FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) opening_agg ON opening_agg.product_sync_id = p.sync_id
       LEFT JOIN (
-        SELECT product_id,
+        SELECT product_sync_id,
           SUM(CASE WHEN quantity > 0 AND movement_type != 'opening' THEN quantity ELSE 0 END) AS total_in,
           ABS(SUM(CASE WHEN quantity < 0 THEN quantity ELSE 0 END)) AS total_out
-        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
-      ) mvt_agg ON mvt_agg.product_id = p.id
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) mvt_agg ON mvt_agg.product_sync_id = p.sync_id
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_cost
-        FROM grn_items GROUP BY product_id
-      ) grn_cost ON grn_cost.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_cost
+        FROM grn_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) grn_cost ON grn_cost.product_sync_id = p.sync_id
       LEFT JOIN (
-        SELECT product_id,
+        SELECT product_sync_id,
           SUM(CASE WHEN movement_type = 'sales_return' THEN quantity ELSE 0 END) +
           SUM(CASE WHEN movement_type = 'production_input' THEN quantity ELSE 0 END)
           AS available_for_reprocessing
-        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
-      ) reprocess_agg ON reprocess_agg.product_id = p.id
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) reprocess_agg ON reprocess_agg.product_sync_id = p.sync_id
       WHERE p.deleted_at IS NULL
       ORDER BY p.name
     `).all();
@@ -155,43 +155,43 @@ router.get('/sales', (req, res) => {
         ON prev_actual.product_id = p.id AND prev_actual.date = date(@date, '-1 day')
 
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS opening_balance
-        FROM stock_movements WHERE location = 'sales' AND created_at < @date
-        GROUP BY product_id
-      ) opening_agg ON opening_agg.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS opening_balance
+        FROM stock_movements WHERE location = 'sales' AND created_at < @date AND product_sync_id IS NOT NULL
+        GROUP BY product_sync_id
+      ) opening_agg ON opening_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT sm.product_id, SUM(sm.quantity) AS input
+        SELECT sm.product_sync_id, SUM(sm.quantity) AS input
         FROM stock_movements sm
         JOIN siv s ON s.sync_id = sm.reference_sync_id
         WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
-          AND s.date = @date AND sm.deleted_at IS NULL
-        GROUP BY sm.product_id
-      ) input_agg ON input_agg.product_id = p.id
+          AND s.date = @date AND sm.deleted_at IS NULL AND sm.product_sync_id IS NOT NULL
+        GROUP BY sm.product_sync_id
+      ) input_agg ON input_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT product_id, ABS(SUM(quantity)) AS total_sales
+        SELECT product_sync_id, ABS(SUM(quantity)) AS total_sales
         FROM stock_movements WHERE location = 'sales' AND movement_type IN ('sale', 'reverse')
-          AND created_at >= @date AND created_at < date(@date, '+1 day')
-        GROUP BY product_id
-      ) sales_day_agg ON sales_day_agg.product_id = p.id
+          AND created_at >= @date AND created_at < date(@date, '+1 day') AND product_sync_id IS NOT NULL
+        GROUP BY product_sync_id
+      ) sales_day_agg ON sales_day_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS sales_balance
+        SELECT product_sync_id, SUM(quantity) AS sales_balance
         FROM stock_movements WHERE location = 'sales'
-          AND created_at < date(@date, '+1 day')
-        GROUP BY product_id
-      ) all_sales_agg ON all_sales_agg.product_id = p.id
+          AND created_at < date(@date, '+1 day') AND product_sync_id IS NOT NULL
+        GROUP BY product_sync_id
+      ) all_sales_agg ON all_sales_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_cost
-        FROM grn_items GROUP BY product_id
-      ) grn_cost ON grn_cost.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_cost
+        FROM grn_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) grn_cost ON grn_cost.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_revenue
-        FROM order_items GROUP BY product_id
-      ) order_rev ON order_rev.product_id = p.id
+        SELECT product_sync_id, SUM(quantity) AS total_qty, SUM(total_price) AS total_revenue
+        FROM order_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
+      ) order_rev ON order_rev.product_sync_id = p.sync_id
 
       LEFT JOIN daily_actual_balance today_actual
         ON today_actual.product_id = p.id AND today_actual.date = @date

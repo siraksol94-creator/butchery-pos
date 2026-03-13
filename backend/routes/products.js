@@ -41,17 +41,17 @@ router.get('/', (req, res) => {
                  FROM products p
                  LEFT JOIN categories c ON p.category_id = c.id
                  LEFT JOIN (
-                   SELECT product_id, SUM(quantity) as store_balance
-                   FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
-                 ) store_agg ON store_agg.product_id = p.id
+                   SELECT product_sync_id, SUM(quantity) as store_balance
+                   FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+                 ) store_agg ON store_agg.product_sync_id = p.sync_id
                  LEFT JOIN (
-                   SELECT product_id, SUM(quantity) as sales_balance
-                   FROM stock_movements WHERE location = 'sales' GROUP BY product_id
-                 ) sales_agg ON sales_agg.product_id = p.id
+                   SELECT product_sync_id, SUM(quantity) as sales_balance
+                   FROM stock_movements WHERE location = 'sales' AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+                 ) sales_agg ON sales_agg.product_sync_id = p.sync_id
                  LEFT JOIN (
-                   SELECT product_id, SUM(quantity) as total_qty, SUM(total_price) as total_cost
-                   FROM grn_items GROUP BY product_id
-                 ) grn_qty ON grn_qty.product_id = p.id
+                   SELECT product_sync_id, SUM(quantity) as total_qty, SUM(total_price) as total_cost
+                   FROM grn_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
+                 ) grn_qty ON grn_qty.product_sync_id = p.sync_id
                  WHERE p.deleted_at IS NULL`;
     const params = [];
 
@@ -91,17 +91,20 @@ router.post('/', auth, (req, res) => {
   try {
     const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, product_type } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+    const cat = category_id ? db.prepare('SELECT sync_id FROM categories WHERE id = ?').get(category_id) : null;
+    const categorySyncId = cat?.sync_id || null;
+    const productSyncId = randomUUID();
     const info = db.prepare(
-      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock, product_type, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
-    ).run(code, name, category_id, unit || 'kg', cost_price, selling_price, current_stock || 0, min_stock || 10,
-          product_type || 'sellable', randomUUID(), tenantId, branchId, deviceId);
+      `INSERT INTO products (code, name, category_id, category_sync_id, unit, cost_price, selling_price, current_stock, min_stock, product_type, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+    ).run(code, name, category_id, categorySyncId, unit || 'kg', cost_price, selling_price, current_stock || 0, min_stock || 10,
+          product_type || 'sellable', productSyncId, tenantId, branchId, deviceId);
     const newProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
     if (parseFloat(current_stock) > 0) {
       db.prepare(
-        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
-      ).run(newProduct.id, 'store', 'opening', current_stock, 'Opening balance',
+        `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+      ).run(newProduct.id, productSyncId, 'store', 'opening', current_stock, 'Opening balance',
             randomUUID(), tenantId, branchId, deviceId);
     }
     res.status(201).json(newProduct);
@@ -116,12 +119,14 @@ router.put('/:id', auth, (req, res) => {
     const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
             product_type, ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start } = req.body;
     db.transaction(() => {
+      const cat = category_id ? db.prepare('SELECT sync_id FROM categories WHERE id = ?').get(category_id) : null;
+      const categorySyncId = cat?.sync_id || null;
       db.prepare(
-        `UPDATE products SET code=?, name=?, category_id=?, unit=?, cost_price=?, selling_price=?,
+        `UPDATE products SET code=?, name=?, category_id=?, category_sync_id=?, unit=?, cost_price=?, selling_price=?,
          current_stock=?, min_stock=?, product_type=?,
          ub_number_start=?, ub_number_length=?, ub_quantity_start=?, ub_quantity_length=?, ub_decimal_start=?,
          updated_at=datetime('now'), synced=0 WHERE id=?`
-      ).run(code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+      ).run(code, name, category_id, categorySyncId, unit, cost_price, selling_price, current_stock, min_stock,
             product_type || 'sellable',
             ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
             req.params.id);
@@ -130,10 +135,11 @@ router.put('/:id', auth, (req, res) => {
         .run(req.params.id);
       if (parseFloat(current_stock) > 0) {
         const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+        const product = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(req.params.id);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
-        ).run(req.params.id, 'store', 'opening', parseFloat(current_stock), 'Opening balance',
+          `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+        ).run(req.params.id, product?.sync_id, 'store', 'opening', parseFloat(current_stock), 'Opening balance',
               randomUUID(), tenantId, branchId, deviceId);
       }
     })();
@@ -238,16 +244,16 @@ router.post('/import', auth, csvUploadMem.single('file'), (req, res) => {
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     let imported = 0, skipped = 0;
     const insertStmt = db.prepare(
-      `INSERT INTO products (code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+      `INSERT INTO products (code, name, category_id, category_sync_id, unit, cost_price, selling_price, current_stock, min_stock,
        ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start,
        sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     );
     const checkCodeStmt = db.prepare("SELECT id FROM products WHERE code = ? AND deleted_at IS NULL");
-    const getCatStmt = db.prepare("SELECT id FROM categories WHERE name = ? AND deleted_at IS NULL");
+    const getCatStmt = db.prepare("SELECT id, sync_id FROM categories WHERE name = ? AND deleted_at IS NULL");
     const stockStmt = db.prepare(
-      `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+      `INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
     );
     db.transaction(() => {
       for (const row of rows) {
@@ -256,9 +262,11 @@ router.post('/import', auth, csvUploadMem.single('file'), (req, res) => {
         if (!code || !name) { skipped++; continue; }
         if (checkCodeStmt.get(code)) { skipped++; continue; }
         let category_id = null;
+        let categorySyncId = null;
         if (row.category?.trim()) {
           const cat = getCatStmt.get(row.category.trim());
           category_id = cat ? cat.id : null;
+          categorySyncId = cat ? cat.sync_id : null;
         }
         const unit = row.unit?.trim() || 'kg';
         const cost_price = parseFloat(row.cost_price) || 0;
@@ -270,13 +278,14 @@ router.post('/import', auth, csvUploadMem.single('file'), (req, res) => {
         const ub_quantity_start = parseInt(row.ub_quantity_start) || 7;
         const ub_quantity_length = parseInt(row.ub_quantity_length) || 0;
         const ub_decimal_start = parseInt(row.ub_decimal_start) || 2;
+        const productSyncId = randomUUID();
         const info = insertStmt.run(
-          code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+          code, name, category_id, categorySyncId, unit, cost_price, selling_price, current_stock, min_stock,
           ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start,
-          randomUUID(), tenantId, branchId, deviceId
+          productSyncId, tenantId, branchId, deviceId
         );
         if (current_stock > 0) {
-          stockStmt.run(info.lastInsertRowid, 'store', 'opening', current_stock, 'Opening balance (import)',
+          stockStmt.run(info.lastInsertRowid, productSyncId, 'store', 'opening', current_stock, 'Opening balance (import)',
             randomUUID(), tenantId, branchId, deviceId);
         }
         imported++;

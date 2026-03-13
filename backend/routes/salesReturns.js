@@ -65,23 +65,25 @@ router.post('/', auth, (req, res) => {
 
       for (const item of items) {
         const qty = parseFloat(item.quantity);
+        const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
+        const productSyncId = prod?.sync_id || null;
         db.prepare(`
-          INSERT INTO sales_return_items (return_id, product_id, quantity, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-        `).run(returnId, item.product_id, qty, randomUUID(), tenantId, branchId, deviceId);
+          INSERT INTO sales_return_items (return_id, product_id, product_sync_id, quantity, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+        `).run(returnId, item.product_id, productSyncId, qty, randomUUID(), tenantId, branchId, deviceId);
 
         // Remove from sales
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
-        `).run(item.product_id, 'sales', 'sales_return', -qty, returnId, 'sales_return',
+          INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
+        `).run(item.product_id, productSyncId, 'sales', 'sales_return', -qty, returnId, 'sales_return',
                notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, returnSyncId);
 
         // Add to store
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
-        `).run(item.product_id, 'store', 'sales_return', qty, returnId, 'sales_return',
+          INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
+        `).run(item.product_id, productSyncId, 'store', 'sales_return', qty, returnId, 'sales_return',
                notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, returnSyncId);
       }
 
