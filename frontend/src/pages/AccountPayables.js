@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getAccountPayables, getAccountPayableStats, createApPayment } from '../services/api';
-import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX } from 'react-icons/fi';
+import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown } from '../services/api';
+import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight } from 'react-icons/fi';
 
 const getStatusBadge = (status) => {
   const map = { 'Paid': 'badge-green', 'Partial': 'badge-orange', 'Unpaid': 'badge-red', 'No Purchases': 'badge-gray' };
@@ -10,10 +10,12 @@ const getStatusBadge = (status) => {
 const AccountPayables = () => {
   const [stats, setStats] = useState({ totalPurchases: 0, totalPaid: 0, outstanding: 0, suppliers: 0, unpaidCount: 0 });
   const [payables, setPayables] = useState([]);
-  const [payModal, setPayModal] = useState(null); // supplier row
+  const [payModal, setPayModal] = useState(null);
   const [form, setForm] = useState({ amount: '', date: '', description: '', paid_from: 'Main Cashier' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [breakdown, setBreakdown] = useState(null);
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -56,6 +58,16 @@ const AccountPayables = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openBreakdown = async (supplier) => {
+    setLoadingBreakdown(true);
+    setBreakdown({ supplier, grns: [], payments: [] });
+    try {
+      const res = await getSupplierBreakdown(supplier.id);
+      setBreakdown(res.data);
+    } catch (e) { /* keep empty */ }
+    setLoadingBreakdown(false);
   };
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -101,7 +113,11 @@ const AccountPayables = () => {
               <tr><td colSpan="9" style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>No suppliers found. Add suppliers and create GRNs to see the ledger.</td></tr>
             ) : payables.map(p => (
               <tr key={p.id}>
-                <td style={{ fontWeight: 500 }}>{p.supplier_name}</td>
+                <td>
+                  <button onClick={() => openBreakdown(p)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, color: '#2563eb', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    {p.supplier_name} <FiChevronRight size={13} />
+                  </button>
+                </td>
                 <td style={{ color: '#6b7280' }}>{p.phone || '—'}</td>
                 <td style={{ textAlign: 'center' }}>{p.grn_count}</td>
                 <td>K{parseFloat(p.total_purchases).toLocaleString()}</td>
@@ -124,6 +140,102 @@ const AccountPayables = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Breakdown Modal */}
+      {breakdown && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{breakdown.supplier?.supplier_name || breakdown.supplier?.name}</h2>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>Supplier account breakdown</p>
+              </div>
+              <button onClick={() => setBreakdown(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><FiX size={20} /></button>
+            </div>
+
+            <div style={{ padding: '18px 24px' }}>
+              {loadingBreakdown ? (
+                <div style={{ textAlign: 'center', color: '#6b7280', padding: 32 }}>Loading...</div>
+              ) : (
+                <>
+                  {/* GRNs */}
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Purchases (GRN)</h3>
+                  {breakdown.grns?.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 18 }}>No purchases yet.</p>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>GRN #</th>
+                          <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Date</th>
+                          <th style={{ textAlign: 'right', padding: '7px 10px', fontWeight: 600 }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {breakdown.grns.map(g => (
+                          <tr key={g.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '7px 10px', color: '#6b7280' }}>{g.grn_number}</td>
+                            <td style={{ padding: '7px 10px' }}>{formatDate(g.date)}</td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600 }}>K{parseFloat(g.total_amount).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
+                          <td colSpan="2" style={{ padding: '7px 10px', textAlign: 'right' }}>Total Purchases:</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: '#dc2626' }}>K{breakdown.grns.reduce((s, g) => s + parseFloat(g.total_amount), 0).toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* Payments */}
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Payments Made (AP)</h3>
+                  {breakdown.payments?.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 18 }}>No payments yet.</p>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Ref #</th>
+                          <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Date</th>
+                          <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Description</th>
+                          <th style={{ textAlign: 'right', padding: '7px 10px', fontWeight: 600 }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {breakdown.payments.map(p => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '7px 10px', color: '#6b7280' }}>{p.payment_number}</td>
+                            <td style={{ padding: '7px 10px' }}>{formatDate(p.date)}</td>
+                            <td style={{ padding: '7px 10px', color: '#6b7280' }}>{p.description || '—'}</td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>K{parseFloat(p.amount).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
+                          <td colSpan="3" style={{ padding: '7px 10px', textAlign: 'right' }}>Total Paid:</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a' }}>K{breakdown.payments.reduce((s, p) => s + parseFloat(p.amount), 0).toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* Balance */}
+                  {(() => {
+                    const totalPurchases = breakdown.grns?.reduce((s, g) => s + parseFloat(g.total_amount), 0) || 0;
+                    const totalPaid = breakdown.payments?.reduce((s, p) => s + parseFloat(p.amount), 0) || 0;
+                    const balance = totalPurchases - totalPaid;
+                    return (
+                      <div style={{ background: balance > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${balance > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>Outstanding Balance:</span>
+                        <span style={{ fontWeight: 700, fontSize: 16, color: balance > 0 ? '#dc2626' : '#16a34a' }}>K{balance.toLocaleString()}</span>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {payModal && (

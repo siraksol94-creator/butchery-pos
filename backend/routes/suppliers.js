@@ -6,7 +6,22 @@ const { randomUUID } = require('crypto');
 
 router.get('/', (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM suppliers WHERE deleted_at IS NULL ORDER BY name').all();
+    const rows = db.prepare(`
+      SELECT s.*,
+        COALESCE(g.total_purchases, 0) AS total_purchases,
+        COALESCE(a.total_paid, 0) AS total_paid,
+        COALESCE(g.total_purchases, 0) - COALESCE(a.total_paid, 0) AS outstanding
+      FROM suppliers s
+      LEFT JOIN (
+        SELECT supplier_sync_id, SUM(total_amount) AS total_purchases
+        FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
+      ) g ON s.sync_id = g.supplier_sync_id
+      LEFT JOIN (
+        SELECT supplier_id, SUM(amount) AS total_paid
+        FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_id
+      ) a ON s.id = a.supplier_id
+      WHERE s.deleted_at IS NULL ORDER BY s.name
+    `).all();
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -17,7 +32,13 @@ router.get('/stats', (req, res) => {
   try {
     const total = db.prepare('SELECT COUNT(*) AS cnt FROM suppliers WHERE deleted_at IS NULL').get();
     const active = db.prepare("SELECT COUNT(*) AS cnt FROM suppliers WHERE deleted_at IS NULL AND status = 'Active'").get();
-    const outstanding = db.prepare('SELECT COALESCE(SUM(outstanding),0) AS total FROM suppliers WHERE deleted_at IS NULL').get();
+    const outstanding = db.prepare(`
+      SELECT COALESCE(SUM(COALESCE(g.total_purchases,0) - COALESCE(a.total_paid,0)), 0) AS total
+      FROM suppliers s
+      LEFT JOIN (SELECT supplier_sync_id, SUM(total_amount) AS total_purchases FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id) g ON s.sync_id = g.supplier_sync_id
+      LEFT JOIN (SELECT supplier_id, SUM(amount) AS total_paid FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_id) a ON s.id = a.supplier_id
+      WHERE s.deleted_at IS NULL
+    `).get();
     res.json({
       totalSuppliers: total.cnt,
       activeAccounts: active.cnt,

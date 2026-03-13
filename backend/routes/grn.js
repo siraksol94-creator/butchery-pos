@@ -10,12 +10,11 @@ const FIFO_SQL = (extraWhere = '', params = []) => ({
   text: `
     WITH supplier_paid AS (
       SELECT s.id AS supplier_id,
-             COALESCE(SUM(pv.amount), 0) AS total_paid
+             COALESCE(SUM(ap.amount), 0) AS total_paid
       FROM   suppliers s
-      LEFT JOIN payment_vouchers pv
-             ON pv.paid_to = s.name
-            AND pv.category = 'Supplier'
-            AND pv.deleted_at IS NULL
+      LEFT JOIN ap_payments ap
+             ON ap.supplier_id = s.id
+            AND ap.deleted_at IS NULL
       WHERE s.deleted_at IS NULL
       GROUP BY s.id
     ),
@@ -82,9 +81,9 @@ router.get('/stats', (req, res) => {
     const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_sync_id) AS cnt FROM grn WHERE deleted_at IS NULL').get();
     const unpaid = db.prepare(`
       WITH supplier_paid AS (
-        SELECT s.id AS supplier_id, COALESCE(SUM(pv.amount), 0) AS total_paid
+        SELECT s.id AS supplier_id, COALESCE(SUM(ap.amount), 0) AS total_paid
         FROM suppliers s
-        LEFT JOIN payment_vouchers pv ON pv.paid_to = s.name AND pv.category = 'Supplier' AND pv.deleted_at IS NULL
+        LEFT JOIN ap_payments ap ON ap.supplier_id = s.id AND ap.deleted_at IS NULL
         WHERE s.deleted_at IS NULL
         GROUP BY s.id
       ),

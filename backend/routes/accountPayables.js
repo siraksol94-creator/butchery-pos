@@ -98,4 +98,27 @@ router.get('/stats', (req, res) => {
   }
 });
 
+// Supplier breakdown — GRNs + AP payments
+router.get('/breakdown/:supplierId', (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
+    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+
+    const grns = db.prepare(`
+      SELECT id, grn_number, date, total_amount, notes
+      FROM grn WHERE supplier_sync_id = ? AND deleted_at IS NULL ORDER BY date ASC
+    `).all(supplier.sync_id);
+
+    const payments = db.prepare(`
+      SELECT id, payment_number, date, amount, description, paid_from
+      FROM ap_payments WHERE supplier_id = ? AND deleted_at IS NULL ORDER BY date ASC
+    `).all(supplierId);
+
+    res.json({ supplier, grns, payments });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

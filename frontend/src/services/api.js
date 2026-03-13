@@ -122,6 +122,7 @@ export const setOpeningBalance = (amount) => api.post('/cash-book/opening-balanc
 
 // Account Payables
 export const getAccountPayables = () => api.get('/account-payables');
+export const getSupplierBreakdown = (supplierId) => api.get(`/account-payables/breakdown/${supplierId}`);
 export const createApPayment = (data) => api.post('/ap-payments', data);
 export const getApPayments = (params) => api.get('/ap-payments', { params });
 export const deleteApPayment = (id) => api.delete(`/ap-payments/${id}`);

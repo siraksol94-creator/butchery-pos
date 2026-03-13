@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, getSuppliers, getSettings } from '../services/api';
+import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, getSettings } from '../services/api';
 import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEdit2, FiEye, FiPrinter, FiX } from 'react-icons/fi';
 
 const getCategoryColor = (cat) => {
@@ -12,7 +12,6 @@ const todayStr = new Date().toISOString().split('T')[0];
 const PaymentVoucher = () => {
   const [stats, setStats]       = useState({ todayPayments: 0, thisMonth: 0, totalVouchers: 0 });
   const [vouchers, setVouchers] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving]     = useState(false);
   const [formError, setFormError] = useState('');
@@ -28,21 +27,19 @@ const PaymentVoucher = () => {
   const [filterTo,   setFilterTo]   = useState('');
 
   const [form, setForm] = useState({
-    paid_to: '', description: '', category: 'Supplier',
+    paid_to: '', description: '', category: 'Other',
     amount: '', date: todayStr, paid_from: 'Main cashier'
   });
 
   const fetchData = async () => {
     try {
-      const [statsRes, vouchersRes, suppliersRes, settingsRes] = await Promise.all([
+      const [statsRes, vouchersRes, settingsRes] = await Promise.all([
         getPaymentVoucherStats(),
         getPaymentVouchers({}),
-        getSuppliers(),
         getSettings(),
       ]);
       if (statsRes.data) setStats(statsRes.data);
       setVouchers(vouchersRes.data || []);
-      setSuppliers(suppliersRes.data || []);
       if (settingsRes.data) setBusinessInfo(settingsRes.data);
     } catch (err) { /* use defaults */ }
   };
@@ -65,7 +62,7 @@ const PaymentVoucher = () => {
 
   const openForm = () => {
     setEditId(null);
-    setForm({ paid_to: '', description: '', category: 'Supplier', amount: '', date: todayStr, paid_from: 'Main cashier' });
+    setForm({ paid_to: '', description: '', category: 'Other', amount: '', date: todayStr, paid_from: 'Main cashier' });
     setFormError('');
     setShowForm(true);
   };
@@ -75,7 +72,7 @@ const PaymentVoucher = () => {
     setForm({
       paid_to:     v.paid_to     || '',
       description: v.description || '',
-      category:    v.category    || 'Supplier',
+      category:    v.category    || 'Other',
       amount:      v.amount      || '',
       date:        v.date ? v.date.split('T')[0] : todayStr,
       paid_from:   v.paid_from   || 'Main cashier',
@@ -86,7 +83,6 @@ const PaymentVoucher = () => {
 
   const handleSave = async () => {
     setFormError('');
-    if (form.category === 'Supplier' && !form.paid_to) return setFormError('Please select a supplier from the list.');
     if (!form.paid_to.trim()) return setFormError('Paid To is required.');
     if (!form.amount || parseFloat(form.amount) <= 0) return setFormError('Amount must be greater than 0.');
 
@@ -504,8 +500,7 @@ const PaymentVoucher = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label>Category</label>
-                  <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value, paid_to: '' })}>
-                    <option value="Supplier">Supplier</option>
+                  <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                     <option value="Utilities">Utilities</option>
                     <option value="Salaries">Salaries</option>
                     <option value="Rent">Rent</option>
@@ -516,14 +511,7 @@ const PaymentVoucher = () => {
                 </div>
                 <div className="form-group">
                   <label>Paid To</label>
-                  {form.category === 'Supplier' ? (
-                    <select value={form.paid_to} onChange={e => setForm({ ...form, paid_to: e.target.value })}>
-                      <option value="">Select supplier...</option>
-                      {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                    </select>
-                  ) : (
-                    <input value={form.paid_to} onChange={e => setForm({ ...form, paid_to: e.target.value })} placeholder="Name of payee" />
-                  )}
+                  <input value={form.paid_to} onChange={e => setForm({ ...form, paid_to: e.target.value })} placeholder="Name of payee" />
                 </div>
               </div>
 
