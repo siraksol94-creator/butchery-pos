@@ -237,25 +237,10 @@ router.post('/push', (req, res) => {
             if (hasUpdatedAt) {
               db.prepare(`UPDATE ${table} SET updated_at = datetime('now') WHERE sync_id = ?`).run(row.sync_id);
             }
-          } else if (hasUpdatedAt) {
-            // Existing record — last-write-wins based on updated_at
-            const incomingUpdatedAt = row.updated_at || row.created_at || '1970-01-01';
-            const existingUpdatedAt = existing.updated_at || existing.created_at || '1970-01-01';
-
-            if (incomingUpdatedAt >= existingUpdatedAt) {
-              // Incoming is newer — update
-              const updateCols = cols.filter(c => c !== 'id' && c !== 'sync_id' && row[c] !== undefined);
-              const setClause = updateCols.map(c => `${c} = ?`).join(', ');
-              const values = [...updateCols.map(c => row[c]), row.sync_id];
-              db.prepare(`UPDATE ${table} SET ${setClause} WHERE sync_id = ?`).run(...values);
-              // Stamp VPS receive time so pull filters on other devices work correctly
-              db.prepare(`UPDATE ${table} SET updated_at = datetime('now') WHERE sync_id = ?`).run(row.sync_id);
-            } else {
-              // Local is newer — report conflict (incoming loses)
-              conflicts.push({ table, sync_id: row.sync_id, reason: 'stale' });
-            }
           } else {
-            // No updated_at — always overwrite
+            // Always accept the push — last device to sync wins.
+            // Timestamp comparison removed: device clocks differ from VPS clock,
+            // causing pushes to be silently rejected and data to diverge between devices.
             const updateCols = cols.filter(c => c !== 'id' && c !== 'sync_id' && row[c] !== undefined);
             const setClause = updateCols.map(c => `${c} = ?`).join(', ');
             const values = [...updateCols.map(c => row[c]), row.sync_id];

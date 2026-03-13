@@ -96,21 +96,10 @@ async function push() {
   slog('push: response ' + result.status + ' ' + JSON.stringify(result.body).substring(0, 200));
 
   if (result.status === 200) {
-    // Build a set of sync_ids that VPS rejected (stale timestamp, VPS version is newer)
-    const conflictedIds = new Set((result.body.conflicts || []).map(c => c.sync_id));
-    if (conflictedIds.size > 0) {
-      slog('push: VPS rejected ' + conflictedIds.size + ' records (stale) — keeping synced=0 for retry');
-    }
     _db.transaction(() => {
       for (const [table, rows] of Object.entries(records)) {
         for (const row of rows) {
           if (!row.sync_id) continue;
-          if (conflictedIds.has(row.sync_id)) {
-            // VPS has a newer version — don't mark as synced, will retry next cycle
-            // Pull will bring the newer VPS version on the next pull (record is still synced=0 so pull will protect it)
-            slog(`push: CONFLICT [${table}] sync_id=${row.sync_id} — keeping synced=0`);
-            continue;
-          }
           try {
             _db.prepare(`UPDATE ${table} SET synced = 1 WHERE sync_id = ?`).run(row.sync_id);
           } catch { /* ignore */ }
