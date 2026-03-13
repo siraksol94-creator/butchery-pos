@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getInventory, createOrder, getSettings } from '../services/api';
 import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
-import PrintPreview from '../components/PrintPreview';
-
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 const defaultProducts = [
@@ -35,7 +33,6 @@ const POS = () => {
   const [businessPhone, setBusinessPhone] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
-  const [previewHTML, setPreviewHTML] = useState(null);
   const [showChangeBanner, setShowChangeBanner] = useState(false);
   const [barcodeMsg, setBarcodeMsg] = useState(null); // { text, type: 'error'|'success' }
   const [scannerActive, setScannerActive] = useState(true);
@@ -274,6 +271,15 @@ const POS = () => {
   const total = Math.max(0, subtotal - parseFloat(discount || 0));
   const change = Math.max(0, parseFloat(amountReceived || 0) - total);
 
+  const printDirect = (html) => {
+    const w = window.open('', '_blank', 'width=420,height=600');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     try {
@@ -347,11 +353,12 @@ const POS = () => {
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: 80mm auto; margin: 2mm 3mm; }
+  @page { size: 80mm auto; margin: 0; }
   html, body { height: auto; margin: 0; padding: 0; }
   * { box-sizing: border-box; }
   body {
-    width: 74mm;
+    width: 80mm;
+    padding: 2mm 3mm;
     font-family: 'Courier New', Courier, monospace;
     font-size: 11px;
     color: #000;
@@ -412,7 +419,7 @@ const POS = () => {
 </body>
 </html>`;
 
-    setPreviewHTML(html);
+    printDirect(html);
   };
 
   const now = new Date();
@@ -420,7 +427,6 @@ const POS = () => {
 
   return (
     <>
-      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="pos-layout no-print">
         {/* Products Section */}
         <div className="pos-products">

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getCashBook, getCashBookStats, setOpeningBalance } from '../services/api';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter } from 'react-icons/fi';
-import PrintPreview from '../components/PrintPreview';
-
 const CashBook = () => {
   const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPayments: 0, currentBalance: 0 });
   const [entries, setEntries] = useState([]);
@@ -10,8 +8,6 @@ const CashBook = () => {
   const [editingOB, setEditingOB] = useState(false);
   const [obInput, setObInput] = useState('');
   const [savingOB, setSavingOB] = useState(false);
-  const [previewHTML, setPreviewHTML] = useState(null);
-
   const fetchData = async () => {
     try {
       const [statsRes, entriesRes] = await Promise.all([getCashBookStats(), getCashBook()]);
@@ -43,6 +39,15 @@ const CashBook = () => {
     receipts: acc.receipts + parseFloat(e.receipt_amount || 0),
     payments: acc.payments + parseFloat(e.payment_amount || 0)
   }), { receipts: 0, payments: 0 });
+
+  const printDirect = (html) => {
+    const w = window.open('', '_blank', 'width=420,height=600');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  };
 
   const handlePrint = () => {
     const div = '='.repeat(42);
@@ -91,12 +96,11 @@ const CashBook = () => {
     <div class="div">${div}</div>
     </body></html>`;
 
-    setPreviewHTML(html);
+    printDirect(html);
   };
 
   return (
     <div className="page-content">
-      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="page-header">
         <div>
           <h1>Cash Book</h1>

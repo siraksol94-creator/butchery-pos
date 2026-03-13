@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings, getOrderProductSummary } from '../services/api';
 import { FiFileText, FiDollarSign, FiShoppingCart, FiCalendar, FiEye, FiRotateCcw, FiX, FiPrinter } from 'react-icons/fi';
-import PrintPreview from '../components/PrintPreview';
-
 const today = new Date().toISOString().split('T')[0];
 
 const SalesReport = () => {
@@ -14,8 +12,6 @@ const SalesReport = () => {
   const [viewLoading, setViewLoading] = useState(false);
   const [reversingItemId, setReversingItemId] = useState(null);
   const [businessName, setBusinessName] = useState('Butchery Pro');
-  const [previewHTML, setPreviewHTML] = useState(null);
-
   const fetchOrders = useCallback(async () => {
     try {
       const res = await getOrders();
@@ -85,6 +81,15 @@ const SalesReport = () => {
 
   const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const printDirect = (html) => {
+    const w = window.open('', '_blank', 'width=420,height=600');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  };
+
   const handlePrintReceipt = async (order) => {
     const div = '='.repeat(42);
     const itemRows = (order.items || []).map(item => `
@@ -143,7 +148,7 @@ const SalesReport = () => {
     <div class="c">Please come again.</div>
     </body></html>`;
 
-    setPreviewHTML(html);
+    printDirect(html);
   };
 
   const handlePrintReport = async () => {
@@ -210,12 +215,11 @@ const SalesReport = () => {
       <div class="footer">Printed: ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
     </body></html>`;
 
-    setPreviewHTML(html);
+    printDirect(html);
   };
 
   return (
     <div className="page-content">
-      {previewHTML && <PrintPreview html={previewHTML} onClose={() => setPreviewHTML(null)} />}
       <div className="page-header">
         <div>
           <h1>Sales Report</h1>
