@@ -112,14 +112,12 @@ const AccountPayables = () => {
                 <td>{formatDate(p.last_grn_date)}</td>
                 <td><span className={`badge ${getStatusBadge(p.status)}`}>{p.status}</span></td>
                 <td>
-                  {parseFloat(p.balance) > 0 && (
-                    <button
-                      onClick={() => openPayModal(p)}
-                      style={{ padding: '5px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                    >
-                      Pay
-                    </button>
-                  )}
+                  <button
+                    onClick={() => openPayModal(p)}
+                    style={{ padding: '5px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  >
+                    Pay
+                  </button>
                 </td>
               </tr>
             ))}
