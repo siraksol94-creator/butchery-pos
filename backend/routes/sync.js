@@ -239,13 +239,11 @@ router.post('/push', (req, res) => {
             }
           } else if (hasUpdatedAt) {
             // Existing record — last-write-wins based on updated_at
-            // Allow 60-second clock-skew tolerance to handle devices whose clocks are slightly behind VPS
-            const CLOCK_SKEW_MS = 60_000;
-            const incomingTs = new Date(row.updated_at || row.created_at || '1970-01-01').getTime();
-            const existingTs = new Date(existing.updated_at || existing.created_at || '1970-01-01').getTime();
+            const incomingUpdatedAt = row.updated_at || row.created_at || '1970-01-01';
+            const existingUpdatedAt = existing.updated_at || existing.created_at || '1970-01-01';
 
-            if (incomingTs + CLOCK_SKEW_MS >= existingTs) {
-              // Incoming is newer (or within skew tolerance) — accept
+            if (incomingUpdatedAt >= existingUpdatedAt) {
+              // Incoming is newer — update
               const updateCols = cols.filter(c => c !== 'id' && c !== 'sync_id' && row[c] !== undefined);
               const setClause = updateCols.map(c => `${c} = ?`).join(', ');
               const values = [...updateCols.map(c => row[c]), row.sync_id];
@@ -253,7 +251,7 @@ router.post('/push', (req, res) => {
               // Stamp VPS receive time so pull filters on other devices work correctly
               db.prepare(`UPDATE ${table} SET updated_at = datetime('now') WHERE sync_id = ?`).run(row.sync_id);
             } else {
-              // VPS has a significantly newer version — report conflict (incoming loses)
+              // Local is newer — report conflict (incoming loses)
               conflicts.push({ table, sync_id: row.sync_id, reason: 'stale' });
             }
           } else {
@@ -303,11 +301,11 @@ router.get('/pull', (req, res) => {
       } else if (hasUpdatedAt) {
         const timeCol = hasCreatedAt ? 'COALESCE(updated_at, created_at)' : 'updated_at';
         rows = db.prepare(
-          `SELECT * FROM ${table} WHERE tenant_id = ? AND ${timeCol} > ?`
+          `SELECT * FROM ${table} WHERE tenant_id = ? AND ${timeCol} >= ?`
         ).all(tenantId, sinceSQLite);
       } else if (hasCreatedAt) {
         rows = db.prepare(
-          `SELECT * FROM ${table} WHERE tenant_id = ? AND created_at > ?`
+          `SELECT * FROM ${table} WHERE tenant_id = ? AND created_at >= ?`
         ).all(tenantId, sinceSQLite);
       } else {
         rows = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ?`).all(tenantId);
