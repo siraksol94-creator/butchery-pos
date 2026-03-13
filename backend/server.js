@@ -220,7 +220,20 @@ db.exec(`
     created_at     TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
-  CREATE TABLE IF NOT EXISTS cash_book (
+  CREATE TABLE IF NOT EXISTS ap_payments (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_number TEXT UNIQUE NOT NULL,
+    supplier_id    INTEGER REFERENCES suppliers(id),
+    supplier_name  TEXT,
+    amount         REAL NOT NULL DEFAULT 0,
+    description    TEXT,
+    date           TEXT NOT NULL,
+    paid_from      TEXT DEFAULT 'Main cashier',
+    created_by     INTEGER REFERENCES users(id),
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+    CREATE TABLE IF NOT EXISTS cash_book (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     date           TEXT NOT NULL,
     description    TEXT,
@@ -385,7 +398,7 @@ db.exec(`
     'stock_movements', 'cash_receipts', 'payment_vouchers', 'cash_book',
     'business_settings', 'cash_reports', 'stock_adjustments', 'daily_actual_balance',
     'production', 'production_inputs', 'production_outputs',
-    'sales_returns', 'sales_return_items',
+    'sales_returns', 'sales_return_items', 'ap_payments',
   ];
 
   // Tables that already have updated_at — skip them
@@ -536,6 +549,7 @@ app.use('/api/cash-reports', require('./routes/cashReport'));
 app.use('/api/stock-adjustments', require('./routes/stockAdjustments'));
 app.use('/api/production', require('./routes/production'));
 app.use('/api/sales-returns', require('./routes/salesReturns'));
+app.use('/api/ap-payments', require('./routes/apPayments'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/admin', require('./routes/admin'));
 

@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { getCashBook, getCashBookStats, setOpeningBalance } from '../services/api';
-import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter, FiFilter } from 'react-icons/fi';
 const CashBook = () => {
-  const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPayments: 0, currentBalance: 0 });
+  const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPV: 0, totalAP: 0, totalPayments: 0, currentBalance: 0 });
   const [entries, setEntries] = useState([]);
   const [openingBal, setOpeningBal] = useState(0);
   const [editingOB, setEditingOB] = useState(false);
   const [obInput, setObInput] = useState('');
   const [savingOB, setSavingOB] = useState(false);
-  const fetchData = async () => {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  const fetchData = async (f, t) => {
     try {
-      const [statsRes, entriesRes] = await Promise.all([getCashBookStats(), getCashBook()]);
+      const params = {};
+      if (f) params.from = f;
+      if (t) params.to = t;
+      const [statsRes, entriesRes] = await Promise.all([getCashBookStats(params), getCashBook(params)]);
       if (statsRes.data) {
         setStats(statsRes.data);
         setOpeningBal(statsRes.data.openingBalance);
@@ -21,14 +27,17 @@ const CashBook = () => {
     } catch (err) { /* use defaults */ }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(from, to); }, []); // eslint-disable-line
+
+  const handleFilter = () => fetchData(from, to);
+  const handleClearFilter = () => { setFrom(''); setTo(''); fetchData('', ''); };
 
   const handleSaveOB = async () => {
     setSavingOB(true);
     try {
       await setOpeningBalance(parseFloat(obInput) || 0);
       setEditingOB(false);
-      await fetchData();
+      await fetchData(from, to);
     } catch (err) { /* ignore */ }
     setSavingOB(false);
   };
@@ -56,7 +65,7 @@ const CashBook = () => {
       ...entries.map(e => `<tr>
         <td>${new Date(e.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})}</td>
         <td>${e.description || ''}</td>
-        <td>${e.reference || ''}</td>
+        <td>${e.reference || ''} ${e.type === 'AP' ? '[AP]' : ''}</td>
         <td>${parseFloat(e.receipt_amount) > 0 ? '$' + parseFloat(e.receipt_amount).toFixed(2) : ''}</td>
         <td>${parseFloat(e.payment_amount) > 0 ? '$' + parseFloat(e.payment_amount).toFixed(2) : ''}</td>
         <td>$${parseFloat(e.balance).toFixed(2)}</td>
@@ -88,7 +97,7 @@ const CashBook = () => {
         <th style="text-align:left">DESC</th>
         <th style="text-align:left">REF</th>
         <th style="text-align:right">CR</th>
-        <th style="text-align:right">PV</th>
+        <th style="text-align:right">PV/AP</th>
         <th style="text-align:right">BAL</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -104,7 +113,7 @@ const CashBook = () => {
       <div className="page-header">
         <div>
           <h1>Cash Book</h1>
-          <p>Track all cash transactions (auto-generated from CR &amp; PV)</p>
+          <p>Track all cash transactions (auto-generated from CR, PV &amp; AP)</p>
         </div>
         <button
           onClick={handlePrint}
@@ -112,6 +121,26 @@ const CashBook = () => {
         >
           <FiPrinter size={15} /> Print
         </button>
+      </div>
+
+      {/* Date Filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 13, color: '#6b7280', fontWeight: 600 }}>From:</label>
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+          style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
+        <label style={{ fontSize: 13, color: '#6b7280', fontWeight: 600 }}>To:</label>
+        <input type="date" value={to} onChange={e => setTo(e.target.value)}
+          style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
+        <button onClick={handleFilter}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 6, border: 'none', backgroundColor: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <FiFilter size={13} /> Filter
+        </button>
+        {(from || to) && (
+          <button onClick={handleClearFilter}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: '1px solid #d1d5db', backgroundColor: '#fff', color: '#6b7280', cursor: 'pointer', fontSize: 13 }}>
+            <FiX size={13} /> Clear
+          </button>
+        )}
       </div>
 
       <div className="stat-cards">
@@ -149,14 +178,24 @@ const CashBook = () => {
         </div>
         <div className="stat-card red">
           <div className="stat-icon"><FiTrendingDown /></div>
-          <div><div className="stat-label">Total Payments (PV)</div><div className="stat-value">${stats.totalPayments.toLocaleString()}</div></div>
+          <div>
+            <div className="stat-label">Total PV</div>
+            <div className="stat-value">${(stats.totalPV ?? stats.totalPayments).toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '4px solid #7c3aed' }}>
+          <div className="stat-icon" style={{ background: '#ede9fe', color: '#7c3aed' }}><FiTrendingDown /></div>
+          <div>
+            <div className="stat-label">Total AP (COGS)</div>
+            <div className="stat-value" style={{ color: '#7c3aed' }}>${(stats.totalAP ?? 0).toLocaleString()}</div>
+          </div>
         </div>
         <div className="stat-card blue">
           <div className="stat-icon"><FiDollarSign /></div>
           <div><div className="stat-label">Current Balance</div><div className="stat-value">${stats.currentBalance.toLocaleString()}</div></div>
         </div>
         {(() => {
-          const profit = stats.totalReceipts - stats.totalPayments;
+          const profit = stats.totalReceipts - (stats.totalPV ?? 0) - (stats.totalAP ?? 0);
           const isPos  = profit >= 0;
           return (
             <div className="stat-card" style={{ borderLeft: `4px solid ${isPos ? '#16a34a' : '#dc2626'}` }}>
@@ -164,7 +203,7 @@ const CashBook = () => {
                 {isPos ? <FiTrendingUp /> : <FiTrendingDown />}
               </div>
               <div>
-                <div className="stat-label">Profit (CR − PV)</div>
+                <div className="stat-label">Profit (CR − PV − AP)</div>
                 <div className="stat-value" style={{ color: isPos ? '#16a34a' : '#dc2626' }}>
                   {isPos ? '' : '−'}${Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
@@ -178,7 +217,8 @@ const CashBook = () => {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Date</th><th>Description</th><th>Reference</th><th style={{ color: '#16a34a' }}>Receipts</th>
+              <th>Date</th><th>Description</th><th>Reference</th><th>Type</th>
+              <th style={{ color: '#16a34a' }}>Receipts</th>
               <th style={{ color: '#dc2626' }}>Payments</th><th>Balance</th>
             </tr>
           </thead>
@@ -188,29 +228,42 @@ const CashBook = () => {
               <td style={{ fontWeight: 500 }}>—</td>
               <td style={{ fontWeight: 600 }}>Opening Balance</td>
               <td style={{ color: '#9ca3af', fontSize: 12 }}>OB</td>
+              <td></td>
               <td style={{ color: '#2563eb', fontWeight: 600 }}>${openingBal.toLocaleString()}</td>
               <td></td>
               <td style={{ fontWeight: 600 }}>${openingBal.toLocaleString()}</td>
             </tr>
-            {entries.map(e => (
-              <tr key={e.id}>
-                <td>{formatDate(e.date)}</td>
-                <td style={{ fontWeight: 500 }}>{e.description}</td>
-                <td style={{ color: '#9ca3af', fontSize: 12 }}>{e.reference}</td>
-                <td style={{ color: '#16a34a', fontWeight: e.receipt_amount > 0 ? 500 : 400 }}>
-                  {e.receipt_amount > 0 ? `$${parseFloat(e.receipt_amount).toLocaleString()}` : ''}
-                </td>
-                <td style={{ color: '#dc2626', fontWeight: e.payment_amount > 0 ? 500 : 400 }}>
-                  {e.payment_amount > 0 ? `$${parseFloat(e.payment_amount).toLocaleString()}` : ''}
-                </td>
-                <td style={{ fontWeight: 600 }}>${parseFloat(e.balance).toLocaleString()}</td>
-              </tr>
-            ))}
+            {entries.map(e => {
+              const isAP = e.type === 'AP';
+              return (
+                <tr key={e.id} style={isAP ? { background: '#faf5ff' } : {}}>
+                  <td>{formatDate(e.date)}</td>
+                  <td style={{ fontWeight: 500 }}>{e.description}</td>
+                  <td style={{ color: '#9ca3af', fontSize: 12 }}>{e.reference}</td>
+                  <td>
+                    <span style={{
+                      display: 'inline-block', padding: '2px 7px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                      background: isAP ? '#ede9fe' : '#fee2e2',
+                      color: isAP ? '#7c3aed' : '#dc2626'
+                    }}>
+                      {isAP ? 'AP' : 'PV'}
+                    </span>
+                  </td>
+                  <td style={{ color: '#16a34a', fontWeight: e.receipt_amount > 0 ? 500 : 400 }}>
+                    {e.receipt_amount > 0 ? `$${parseFloat(e.receipt_amount).toLocaleString()}` : ''}
+                  </td>
+                  <td style={{ color: isAP ? '#7c3aed' : '#dc2626', fontWeight: e.payment_amount > 0 ? 500 : 400 }}>
+                    {e.payment_amount > 0 ? `$${parseFloat(e.payment_amount).toLocaleString()}` : ''}
+                  </td>
+                  <td style={{ fontWeight: 600 }}>${parseFloat(e.balance).toFixed(2)}</td>
+                </tr>
+              );
+            })}
             {entries.length === 0 && (
-              <tr><td colSpan="6" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>No transactions yet. Create Cash Receipts or Payment Vouchers.</td></tr>
+              <tr><td colSpan="7" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>No transactions yet. Create Cash Receipts, Payment Vouchers, or AP Payments.</td></tr>
             )}
             <tr style={{ background: '#f9fafb', fontWeight: 700, borderTop: '2px solid #e5e7eb' }}>
-              <td colSpan="3" style={{ textAlign: 'right' }}>TOTALS:</td>
+              <td colSpan="4" style={{ textAlign: 'right' }}>TOTALS:</td>
               <td style={{ color: '#16a34a' }}>${totals.receipts.toLocaleString()}</td>
               <td style={{ color: '#dc2626' }}>${totals.payments.toLocaleString()}</td>
               <td style={{ color: stats.currentBalance >= 0 ? '#16a34a' : '#dc2626' }}>${stats.currentBalance.toLocaleString()}</td>

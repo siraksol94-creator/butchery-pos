@@ -12,20 +12,30 @@ router.get('/', (req, res) => {
     ).get();
     const openingBalance = parseFloat(openingRow.opening);
 
+    const { from, to } = req.query;
+    const dateFilter = (from ? ' AND date >= ?' : '') + (to ? ' AND date <= ?' : '');
+    const dParams = [...(from ? [from] : []), ...(to ? [to] : [])];
+
     const entries = db.prepare(`
       SELECT date, 'CR' AS type, receipt_number AS reference,
         COALESCE(received_from, '') || ' - ' || COALESCE(description, '') AS description,
         amount AS receipt_amount, 0 AS payment_amount
       FROM cash_receipts
-      WHERE deleted_at IS NULL
+      WHERE deleted_at IS NULL${dateFilter}
       UNION ALL
       SELECT date, 'PV' AS type, voucher_number AS reference,
         COALESCE(paid_to, '') || ' - ' || COALESCE(description, '') AS description,
         0 AS receipt_amount, amount AS payment_amount
       FROM payment_vouchers
-      WHERE deleted_at IS NULL
+      WHERE deleted_at IS NULL${dateFilter}
+      UNION ALL
+      SELECT date, 'AP' AS type, payment_number AS reference,
+        COALESCE(supplier_name, '') || ' - ' || COALESCE(description, 'Supplier Payment') AS description,
+        0 AS receipt_amount, amount AS payment_amount
+      FROM ap_payments
+      WHERE deleted_at IS NULL${dateFilter}
       ORDER BY date ASC, reference ASC
-    `).all();
+    `).all(...dParams, ...dParams, ...dParams);
 
     let balance = openingBalance;
     const rows = entries.map((e, i) => {
@@ -45,16 +55,26 @@ router.get('/stats', (req, res) => {
     const openingRow = db.prepare(
       "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL"
     ).get();
-    const receipts = db.prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL').get();
-    const payments = db.prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL').get();
+
+    const { from, to } = req.query;
+    const df = (from ? ' AND date >= ?' : '') + (to ? ' AND date <= ?' : '');
+    const dp = [...(from ? [from] : []), ...(to ? [to] : [])];
+
+    const receipts = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL${df}`).get(...dp);
+    const payments = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL${df}`).get(...dp);
+    const apPmts   = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL${df}`).get(...dp);
 
     const opening = parseFloat(openingRow.opening);
     const totalReceipts = parseFloat(receipts.total);
-    const totalPayments = parseFloat(payments.total);
+    const totalPV = parseFloat(payments.total);
+    const totalAP = parseFloat(apPmts.total);
+    const totalPayments = totalPV + totalAP;
 
     res.json({
       openingBalance: opening,
       totalReceipts,
+      totalPV,
+      totalAP,
       totalPayments,
       currentBalance: opening + totalReceipts - totalPayments
     });

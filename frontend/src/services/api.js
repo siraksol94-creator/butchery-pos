@@ -116,12 +116,15 @@ export const createPaymentVoucher = (data) => api.post('/payment-vouchers', data
 export const updatePaymentVoucher = (id, data) => api.put(`/payment-vouchers/${id}`, data);
 
 // Cash Book
-export const getCashBook = () => api.get('/cash-book');
-export const getCashBookStats = () => api.get('/cash-book/stats');
+export const getCashBook = (params) => api.get('/cash-book', { params });
+export const getCashBookStats = (params) => api.get('/cash-book/stats', { params });
 export const setOpeningBalance = (amount) => api.post('/cash-book/opening-balance', { amount });
 
 // Account Payables
 export const getAccountPayables = () => api.get('/account-payables');
+export const createApPayment = (data) => api.post('/ap-payments', data);
+export const getApPayments = (params) => api.get('/ap-payments', { params });
+export const deleteApPayment = (id) => api.delete(`/ap-payments/${id}`);
 export const getAccountPayableStats = () => api.get('/account-payables/stats');
 export const createAccountPayable = (data) => api.post('/account-payables', data);
 export const payInvoice = (id, data) => api.put(`/account-payables/${id}/pay`, data);

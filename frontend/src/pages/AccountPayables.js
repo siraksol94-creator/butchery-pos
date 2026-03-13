@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAccountPayables, getAccountPayableStats, createPaymentVoucher } from '../services/api';
+import { getAccountPayables, getAccountPayableStats, createApPayment } from '../services/api';
 import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX } from 'react-icons/fi';
 
 const getStatusBadge = (status) => {
