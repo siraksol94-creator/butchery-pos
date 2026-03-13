@@ -146,11 +146,12 @@ async function pull() {
           if (!existing) {
             // New record from VPS — insert it (mark synced=1 so we don't push it back)
             const insertCols = cols.filter(c => c !== 'id' && row[c] !== undefined && row[c] !== null);
-            if (insertCols.length === 0) continue;
+            if (insertCols.length === 0) { slog(`pull: SKIP [${table}] no cols for sync_id=${row.sync_id}`); continue; }
             const placeholders = insertCols.map(() => '?').join(', ');
-            _db.prepare(
+            const ins = _db.prepare(
               `INSERT OR IGNORE INTO ${table} (${insertCols.join(', ')}) VALUES (${placeholders})`
             ).run(...insertCols.map(c => row[c]));
+            if (ins.changes === 0) slog(`pull: IGNORED [${table}] sync_id=${row.sync_id} cols=${insertCols.join(',')}`);
             _db.prepare(`UPDATE ${table} SET synced = 1 WHERE sync_id = ?`).run(row.sync_id);
           } else {
             // Existing record — update all columns except id and sync_id, mark synced=1
