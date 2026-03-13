@@ -272,7 +272,7 @@ const POS = () => {
   const change = Math.max(0, parseFloat(amountReceived || 0) - total);
 
   const printDirect = (html) => {
-    const w = window.open('', '_blank', 'width=420,height=600');
+    const w = window.open('', '_blank', 'width=320,height=600');
     if (!w) return;
     w.document.write(html);
     w.document.close();
@@ -355,10 +355,11 @@ const POS = () => {
 <meta charset="UTF-8">
 <style>
   @page { size: 80mm auto; margin: 0; }
-  html, body { height: auto; margin: 0; padding: 0; }
+  html, body { height: auto; margin: 0; padding: 0; overflow-x: hidden; }
   * { box-sizing: border-box; }
   body {
     width: 80mm;
+    max-width: 80mm;
     padding: 2mm 3mm;
     font-family: 'Courier New', Courier, monospace;
     font-size: 11px;

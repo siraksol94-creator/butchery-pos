@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Icon Preview — Butchery Pro</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #18181b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      gap: 48px;
+      padding: 40px;
+    }
+    h2 { color: #fff; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.4; margin-bottom: 24px; text-align: center; }
+
+    .row {
+      display: flex;
+      gap: 40px;
+      align-items: flex-end;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .icon-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .icon-wrap span {
+      color: #666;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    /* ── Icon base: dark circle ── */
+    svg.icon {
+      border-radius: 50%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Butchery Pro — Icon Concepts</h2>
+
+  <div class="row">
+
+    <!-- Option A: Cleaver on dark circle -->
+    <div class="icon-wrap">
+      <svg class="icon" width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="bgA" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#2a2a3e"/>
+            <stop offset="100%" stop-color="#0f0f1a"/>
+          </radialGradient>
+          <linearGradient id="bladeA" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e8e8e8"/>
+            <stop offset="100%" stop-color="#a0a0a0"/>
+          </linearGradient>
+          <linearGradient id="goldA" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f0d080"/>
+            <stop offset="100%" stop-color="#c8900a"/>
+          </linearGradient>
+        </defs>
+        <!-- Dark circle bg -->
+        <circle cx="60" cy="60" r="60" fill="url(#bgA)"/>
+        <!-- Subtle ring -->
+        <circle cx="60" cy="60" r="56" fill="none" stroke="#e8b84b" stroke-width="1" opacity="0.2"/>
+        <!-- Cleaver blade -->
+        <path d="M28 32 L82 24 L88 68 L26 74 Z" fill="url(#bladeA)"/>
+        <!-- Blade spine -->
+        <path d="M28 32 L82 24 L84 30 L30 38 Z" fill="#c0c0c0"/>
+        <!-- Blade edge highlight -->
+        <line x1="26" y1="74" x2="88" y2="68" stroke="#fff" stroke-width="1.2" opacity="0.5"/>
+        <!-- Handle -->
+        <path d="M18 70 L28 74 L24 96 L14 92 Z" fill="#3a1a08"/>
+        <!-- Handle bolster -->
+        <path d="M26 73 L30 75 L26 97 L22 95 Z" fill="#999"/>
+        <!-- Meat drop (red circle) -->
+        <circle cx="82" cy="82" r="18" fill="#c0392b"/>
+        <circle cx="82" cy="82" r="14" fill="#e05050" opacity="0.4"/>
+        <!-- Gold B letter -->
+        <text x="60" y="104" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" font-weight="900" fill="url(#goldA)" letter-spacing="2" opacity="0.8">PRO</text>
+      </svg>
+      <span>Option A — Cleaver + Meat</span>
+    </div>
+
+    <!-- Option B: Meat cut silhouette on dark circle with gold ring -->
+    <div class="icon-wrap">
+      <svg class="icon" width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="bgB" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#2a2a3e"/>
+            <stop offset="100%" stop-color="#0f0f1a"/>
+          </radialGradient>
+          <linearGradient id="goldB" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f0d080"/>
+            <stop offset="100%" stop-color="#c8900a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r="60" fill="url(#bgB)"/>
+        <!-- Gold outer ring -->
+        <circle cx="60" cy="60" r="54" fill="none" stroke="url(#goldB)" stroke-width="2.5" opacity="0.6"/>
+        <!-- Cleaver silhouette in gold -->
+        <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#goldB)" opacity="0.9"/>
+        <!-- Handle -->
+        <path d="M20 68 L30 72 L26 90 L16 86 Z" fill="#c8900a"/>
+        <!-- Bolster -->
+        <path d="M28 71 L32 73 L28 91 L24 89 Z" fill="#f0d080" opacity="0.7"/>
+        <!-- BP monogram -->
+        <text x="60" y="100" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="url(#goldB)" letter-spacing="3">PRO</text>
+      </svg>
+      <span>Option B — Gold Cleaver</span>
+    </div>
+
+    <!-- Option C: Bold BP monogram on dark circle -->
+    <div class="icon-wrap">
+      <svg class="icon" width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="bgC" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#2a1a0a"/>
+            <stop offset="100%" stop-color="#0f0a04"/>
+          </radialGradient>
+          <linearGradient id="goldC" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f0d080"/>
+            <stop offset="100%" stop-color="#c8900a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r="60" fill="url(#bgC)"/>
+        <!-- Gold ring -->
+        <circle cx="60" cy="60" r="54" fill="none" stroke="url(#goldC)" stroke-width="2" opacity="0.7"/>
+        <!-- Inner ring -->
+        <circle cx="60" cy="60" r="46" fill="none" stroke="url(#goldC)" stroke-width="0.8" opacity="0.3"/>
+        <!-- Large B -->
+        <text x="38" y="72" font-family="Arial Black,sans-serif" font-size="42" font-weight="900" fill="url(#goldC)">B</text>
+        <!-- Small P superscript -->
+        <text x="72" y="52" font-family="Arial Black,sans-serif" font-size="20" font-weight="900" fill="url(#goldC)" opacity="0.8">P</text>
+        <!-- Cleaver tiny accent -->
+        <path d="M20 82 L100 82" stroke="url(#goldC)" stroke-width="1" opacity="0.3"/>
+        <text x="60" y="96" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="7" fill="url(#goldC)" letter-spacing="2" opacity="0.6">BUTCHERY PRO</text>
+      </svg>
+      <span>Option C — BP Monogram</span>
+    </div>
+
+  </div>
+
+  <!-- Sizes preview for chosen icon -->
+  <div>
+    <h2 style="margin-bottom:20px;">How Option B looks at different sizes</h2>
+    <div class="row" style="align-items:center;">
+      <div class="icon-wrap">
+        <svg class="icon" width="256" height="256" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bgB2" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#2a2a3e"/><stop offset="100%" stop-color="#0f0f1a"/></radialGradient>
+            <linearGradient id="goldB2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f0d080"/><stop offset="100%" stop-color="#c8900a"/></linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="60" fill="url(#bgB2)"/>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="url(#goldB2)" stroke-width="2.5" opacity="0.6"/>
+          <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#goldB2)" opacity="0.9"/>
+          <path d="M20 68 L30 72 L26 90 L16 86 Z" fill="#c8900a"/>
+          <path d="M28 71 L32 73 L28 91 L24 89 Z" fill="#f0d080" opacity="0.7"/>
+          <text x="60" y="100" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="url(#goldB2)" letter-spacing="3">PRO</text>
+        </svg>
+        <span>256×256 (installer)</span>
+      </div>
+      <div class="icon-wrap">
+        <svg class="icon" width="64" height="64" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bgB3" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#2a2a3e"/><stop offset="100%" stop-color="#0f0f1a"/></radialGradient>
+            <linearGradient id="goldB3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f0d080"/><stop offset="100%" stop-color="#c8900a"/></linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="60" fill="url(#bgB3)"/>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="url(#goldB3)" stroke-width="2.5" opacity="0.6"/>
+          <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#goldB3)" opacity="0.9"/>
+          <path d="M20 68 L30 72 L26 90 L16 86 Z" fill="#c8900a"/>
+          <path d="M28 71 L32 73 L28 91 L24 89 Z" fill="#f0d080" opacity="0.7"/>
+          <text x="60" y="100" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="url(#goldB3)" letter-spacing="3">PRO</text>
+        </svg>
+        <span>64×64 (taskbar)</span>
+      </div>
+      <div class="icon-wrap">
+        <svg class="icon" width="32" height="32" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bgB4" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#2a2a3e"/><stop offset="100%" stop-color="#0f0f1a"/></radialGradient>
+            <linearGradient id="goldB4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f0d080"/><stop offset="100%" stop-color="#c8900a"/></linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="60" fill="url(#bgB4)"/>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="url(#goldB4)" stroke-width="2.5" opacity="0.6"/>
+          <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#goldB4)" opacity="0.9"/>
+          <path d="M20 68 L30 72 L26 90 L16 86 Z" fill="#c8900a"/>
+        </svg>
+        <span>32×32 (title bar)</span>
+      </div>
+      <div class="icon-wrap">
+        <svg class="icon" width="16" height="16" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="bgB5" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#2a2a3e"/><stop offset="100%" stop-color="#0f0f1a"/></radialGradient>
+            <linearGradient id="goldB5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f0d080"/><stop offset="100%" stop-color="#c8900a"/></linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="60" fill="url(#bgB5)"/>
+          <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#goldB5)" opacity="0.9"/>
+        </svg>
+        <span>16×16 (favicon)</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

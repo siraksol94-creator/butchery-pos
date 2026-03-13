@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Save Butchery Pro Icon</title>
+  <style>
+    body { background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:'Segoe UI',sans-serif; gap:24px; }
+    h2 { color:#e8b84b; font-size:14px; letter-spacing:2px; text-transform:uppercase; }
+    p  { color:#666; font-size:12px; }
+    .row { display:flex; gap:32px; align-items:flex-end; }
+    .wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .wrap span { color:#555; font-size:11px; }
+    button {
+      padding: 12px 28px;
+      background: linear-gradient(135deg,#f0d080,#c8900a);
+      color: #1a1a2e;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    button:hover { opacity:0.9; }
+    canvas { display:none; }
+  </style>
+</head>
+<body>
+  <h2>Butchery Pro — App Icon</h2>
+  <p>Click a button below to download the icon at that size</p>
+
+  <div class="row" id="previews"></div>
+
+  <button onclick="downloadAll()">⬇ Download icon.png (256×256)</button>
+  <p style="color:#444">Save it to: <code style="color:#e8b84b">frontend/electron/icon.png</code></p>
+
+  <canvas id="c"></canvas>
+
+  <script>
+    const SVG_SRC = `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bg" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#2a2a3e"/>
+          <stop offset="100%" stop-color="#0f0f1a"/>
+        </radialGradient>
+        <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f0d080"/>
+          <stop offset="100%" stop-color="#c8900a"/>
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="60" fill="url(#bg)"/>
+      <circle cx="60" cy="60" r="54" fill="none" stroke="url(#gold)" stroke-width="2.5" opacity="0.6"/>
+      <path d="M30 36 L78 28 L84 66 L28 72 Z" fill="url(#gold)" opacity="0.9"/>
+      <path d="M30 36 L78 28 L80 33 L32 41 Z" fill="#f0d080" opacity="0.4"/>
+      <path d="M20 68 L30 72 L26 90 L16 86 Z" fill="#c8900a"/>
+      <path d="M28 71 L32 73 L28 91 L24 89 Z" fill="#f0d080" opacity="0.7"/>
+      <text x="60" y="100" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="url(#gold)" letter-spacing="3">PRO</text>
+    </svg>`;
+
+    const sizes = [256, 64, 32, 16];
+
+    // Show previews
+    const row = document.getElementById('previews');
+    sizes.forEach(s => {
+      const wrap = document.createElement('div');
+      wrap.className = 'wrap';
+      const img = document.createElement('img');
+      const blob = new Blob([SVG_SRC], {type:'image/svg+xml'});
+      img.src = URL.createObjectURL(blob);
+      img.width = s; img.height = s;
+      img.style.borderRadius = '50%';
+      wrap.appendChild(img);
+      const label = document.createElement('span');
+      label.textContent = s + '×' + s;
+      wrap.appendChild(label);
+      row.appendChild(wrap);
+    });
+
+    function downloadAll() {
+      const size = 256;
+      const canvas = document.getElementById('c');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const blob = new Blob([SVG_SRC], {type:'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0,0,size,size);
+        ctx.drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        const a = document.createElement('a');
+        a.download = 'icon.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      };
+      img.src = url;
+    }
+  </script>
+</body>
+</html>

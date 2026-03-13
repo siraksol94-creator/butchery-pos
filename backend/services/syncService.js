@@ -126,6 +126,7 @@ async function pull() {
   const pulled = Object.entries(result.body.records).map(([t,r]) => `${t}:${r.length}`);
   slog('pull: received ' + (pulled.length ? JSON.stringify(pulled) : 'nothing'));
 
+  _db.pragma('foreign_keys = OFF');
   _db.transaction(() => {
     for (const [table, rows] of Object.entries(result.body.records)) {
       if (!SYNC_TABLES.includes(table)) continue;
@@ -160,10 +161,11 @@ async function pull() {
               ...updateCols.map(c => row[c]), row.sync_id
             );
           }
-        } catch { /* ignore individual row errors */ }
+        } catch (rowErr) { slog(`pull: row error [${table}] ${rowErr.message}`); }
       }
     }
   })();
+  _db.pragma('foreign_keys = ON');
 
   if (result.body.serverTime) {
     _syncConfig.updateLastPullTime(result.body.serverTime);
