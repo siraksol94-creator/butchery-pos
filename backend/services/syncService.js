@@ -141,7 +141,7 @@ async function pull() {
         if (!row.sync_id) continue;
 
         try {
-          const existing = _db.prepare(`SELECT id FROM ${table} WHERE sync_id = ?`).get(row.sync_id);
+          const existing = _db.prepare(`SELECT id, synced FROM ${table} WHERE sync_id = ?`).get(row.sync_id);
 
           if (!existing) {
             // New record from VPS — insert it (mark synced=1 so we don't push it back)
@@ -153,8 +153,12 @@ async function pull() {
             ).run(...insertCols.map(c => row[c]));
             if (ins.changes === 0) slog(`pull: IGNORED [${table}] sync_id=${row.sync_id} cols=${insertCols.join(',')}`);
             _db.prepare(`UPDATE ${table} SET synced = 1 WHERE sync_id = ?`).run(row.sync_id);
+          } else if (existing.synced === 0) {
+            // Local record has unsaved changes (synced=0) — skip to protect local edits.
+            // Push will send the local version to VPS on the next cycle.
+            slog(`pull: PROTECT [${table}] sync_id=${row.sync_id} — local has pending changes, skipping overwrite`);
           } else {
-            // Existing record — update all columns except id and sync_id, mark synced=1
+            // Existing record is clean (synced=1) — safe to overwrite with VPS version
             const updateCols = cols.filter(c => c !== 'id' && c !== 'sync_id' && row[c] !== undefined);
             if (updateCols.length === 0) continue;
             const setClause = [...updateCols.map(c => `${c} = ?`), 'synced = 1'].join(', ');
