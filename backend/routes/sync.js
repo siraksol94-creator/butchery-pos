@@ -8,6 +8,8 @@ const bcrypt = require('bcrypt');
 const SYNC_TABLES = [
   'users', 'categories', 'products', 'customers', 'suppliers',
   'orders', 'order_items', 'grn', 'grn_items', 'siv', 'siv_items',
+  'production', 'production_inputs', 'production_outputs',
+  'sales_returns', 'sales_return_items',
   'stock_movements', 'cash_receipts', 'payment_vouchers', 'cash_book',
   'business_settings', 'cash_reports', 'stock_adjustments', 'daily_actual_balance',
 ];
@@ -402,6 +404,8 @@ router.post('/force-resync', (req, res) => {
   try {
     const tables = ['users','categories','products','customers','suppliers',
       'orders','order_items','grn','grn_items','siv','siv_items',
+      'production','production_inputs','production_outputs',
+      'sales_returns','sales_return_items',
       'stock_movements','cash_receipts','payment_vouchers','cash_book',
       'business_settings','cash_reports','stock_adjustments','daily_actual_balance'];
     let total = 0;

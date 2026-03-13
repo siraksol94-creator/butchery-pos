@@ -415,6 +415,26 @@ db.exec(`
   db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM orders WHERE id = stock_movements.reference_id) WHERE reference_type = 'order' AND reference_sync_id IS NULL`).run();
   db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM stock_adjustments WHERE id = stock_movements.reference_id) WHERE reference_type = 'adjustment' AND reference_sync_id IS NULL`).run();
   db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM sales_returns WHERE id = stock_movements.reference_id) WHERE reference_type = 'sales_return' AND reference_sync_id IS NULL`).run();
+
+  // Backfill sync_id + tenant_id + branch_id + device_id for records created before sync was set up
+  // Uses SQLite randomblob(16) for UUID generation — runs once per row, skips already-filled rows
+  for (const t of allTables) {
+    try {
+      const cols = db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
+      if (cols.includes('sync_id')) {
+        db.prepare(`UPDATE ${t} SET sync_id = lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))) WHERE sync_id IS NULL`).run();
+      }
+      if (cols.includes('tenant_id')) {
+        db.prepare(`UPDATE ${t} SET tenant_id = (SELECT value FROM sync_config WHERE key = 'tenant_id') WHERE tenant_id IS NULL`).run();
+      }
+      if (cols.includes('branch_id')) {
+        db.prepare(`UPDATE ${t} SET branch_id = (SELECT value FROM sync_config WHERE key = 'branch_id') WHERE branch_id IS NULL`).run();
+      }
+      if (cols.includes('device_id')) {
+        db.prepare(`UPDATE ${t} SET device_id = (SELECT value FROM sync_config WHERE key = 'device_id') WHERE device_id IS NULL`).run();
+      }
+    } catch (_) {}
+  }
 })();
 
 // ─── Sync: initialise device_id ──────────────────────────────────────────────
