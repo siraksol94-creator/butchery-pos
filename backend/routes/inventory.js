@@ -163,7 +163,7 @@ router.get('/sales', (req, res) => {
       LEFT JOIN (
         SELECT sm.product_id, SUM(sm.quantity) AS input
         FROM stock_movements sm
-        JOIN siv s ON s.id = sm.reference_id
+        JOIN siv s ON s.sync_id = sm.reference_sync_id
         WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
           AND s.date = @date AND sm.deleted_at IS NULL
         GROUP BY sm.product_id
@@ -219,7 +219,7 @@ router.get('/sales/siv-breakdown', (req, res) => {
     const rows = db.prepare(`
       SELECT s.siv_number, s.department, sm.quantity, sm.created_at
       FROM stock_movements sm
-      JOIN siv s ON s.id = sm.reference_id
+      JOIN siv s ON s.sync_id = sm.reference_sync_id
       WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
         AND sm.product_id = ? AND s.date = ? AND sm.deleted_at IS NULL
       ORDER BY sm.created_at ASC
@@ -300,9 +300,9 @@ router.get('/bin-card', (req, res) => {
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS balance
       FROM stock_movements sm
-      LEFT JOIN grn g        ON g.id  = sm.reference_id AND sm.reference_type = 'grn'
-      LEFT JOIN siv sv       ON sv.id = sm.reference_id AND sm.reference_type = 'siv'
-      LEFT JOIN production pr ON pr.id = sm.reference_id AND sm.reference_type = 'production'
+      LEFT JOIN grn g        ON g.sync_id  = sm.reference_sync_id AND sm.reference_type = 'grn'
+      LEFT JOIN siv sv       ON sv.sync_id = sm.reference_sync_id AND sm.reference_type = 'siv'
+      LEFT JOIN production pr ON pr.sync_id = sm.reference_sync_id AND sm.reference_type = 'production'
       WHERE sm.product_id = @product_id AND sm.location = 'store' AND sm.deleted_at IS NULL
     `;
     if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }

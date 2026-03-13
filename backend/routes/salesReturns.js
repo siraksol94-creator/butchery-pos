@@ -55,11 +55,12 @@ router.post('/', auth, (req, res) => {
 
     const result = db.transaction(() => {
       const returnNum = syncConfig.generateNumber('SRT', 'sales_returns');
+      const returnSyncId = randomUUID();
       const info = db.prepare(`
         INSERT INTO sales_returns (return_number, date, notes, total_items, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
       `).run(returnNum, returnDate, notes || null, items.length, req.user.id,
-             randomUUID(), tenantId, branchId, deviceId);
+             returnSyncId, tenantId, branchId, deviceId);
       const returnId = info.lastInsertRowid;
 
       for (const item of items) {
@@ -71,17 +72,17 @@ router.post('/', auth, (req, res) => {
 
         // Remove from sales
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
         `).run(item.product_id, 'sales', 'sales_return', -qty, returnId, 'sales_return',
-               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId);
+               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, returnSyncId);
 
         // Add to store
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
         `).run(item.product_id, 'store', 'sales_return', qty, returnId, 'sales_return',
-               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId);
+               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, returnSyncId);
       }
 
       return db.prepare('SELECT * FROM sales_returns WHERE id = ?').get(returnId);

@@ -125,11 +125,12 @@ router.post('/', auth, (req, res) => {
       const grnDate = date || new Date().toISOString().split('T')[0];
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
 
+      const grnSyncId = randomUUID();
       const info = db.prepare(
         `INSERT INTO grn (grn_number, date, supplier_id, total_items, total_amount, notes, created_by, status, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,'Completed',?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(grnNum, grnDate, supplier_id, items.length, totalAmount, notes, req.user.id,
-            randomUUID(), tenantId, branchId, deviceId);
+            grnSyncId, tenantId, branchId, deviceId);
       const grnId = info.lastInsertRowid;
 
       for (const item of items) {
@@ -138,10 +139,10 @@ router.post('/', auth, (req, res) => {
         ).run(grnId, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`
         ).run(item.product_id, 'store', 'grn', item.quantity, grnId, 'grn', req.user.id,
-              randomUUID(), tenantId, branchId, deviceId);
+              randomUUID(), tenantId, branchId, deviceId, grnSyncId);
       }
 
       return db.prepare('SELECT * FROM grn WHERE id = ?').get(grnId);
@@ -204,11 +205,11 @@ router.put('/:id', auth, (req, res) => {
         supplier_id, date, notes, validItems.length, totalAmount, id
       );
 
-      const oldItems = db.prepare('SELECT * FROM grn_items WHERE grn_id=?').all(id);
-      for (const old of oldItems) {
-        db.prepare("DELETE FROM stock_movements WHERE reference_id=? AND reference_type='grn' AND product_id=?").run(id, old.product_id);
-      }
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='grn' AND deleted_at IS NULL").run(id);
       db.prepare('DELETE FROM grn_items WHERE grn_id=?').run(id);
+
+      const grnRecord = db.prepare('SELECT sync_id FROM grn WHERE id=?').get(id);
+      const grnSyncId = grnRecord?.sync_id;
 
       for (const item of validItems) {
         const qty = parseFloat(item.quantity);
@@ -216,8 +217,8 @@ router.put('/:id', auth, (req, res) => {
         db.prepare("INSERT INTO grn_items (grn_id, product_id, quantity, unit_price, total_price, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))").run(
           id, item.product_id, qty, price, qty * price, randomUUID(), tenantId, branchId, deviceId
         );
-        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,'store','grn',?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`).run(
-          item.product_id, qty, id, 'grn', req.user.id, randomUUID(), tenantId, branchId, deviceId
+        db.prepare(`INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,'store','grn',?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`).run(
+          item.product_id, qty, id, 'grn', req.user.id, randomUUID(), tenantId, branchId, deviceId, grnSyncId
         );
       }
     })();
@@ -284,7 +285,7 @@ router.delete('/:id', auth, (req, res) => {
         });
       }
 
-      db.prepare("DELETE FROM stock_movements WHERE reference_id = ? AND reference_type = 'grn'").run(id);
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='grn' AND deleted_at IS NULL").run(id);
       db.prepare('DELETE FROM grn_items WHERE grn_id = ?').run(id);
       db.prepare("UPDATE grn SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(id);
       return null;

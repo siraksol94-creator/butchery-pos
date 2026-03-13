@@ -75,11 +75,12 @@ router.post('/', auth, (req, res) => {
       const costPerKg = totalOutputQty > 0 ? totalInputCost / totalOutputQty : 0;
 
       // Insert production header
+      const prodSyncId = randomUUID();
       const info = db.prepare(`
         INSERT INTO production (production_number, date, notes, total_input_cost, cost_per_kg, total_output_qty, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
       `).run(prodNum, prodDate, notes || null, totalInputCost, costPerKg, totalOutputQty,
-             req.user.id, randomUUID(), tenantId, branchId, deviceId);
+             req.user.id, prodSyncId, tenantId, branchId, deviceId);
       const prodId = info.lastInsertRowid;
 
       // Inputs: record items + negative stock movements
@@ -92,10 +93,10 @@ router.post('/', auth, (req, res) => {
         `).run(prodId, input.product_id, qty, unitCost, qty * unitCost,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
         `).run(input.product_id, 'store', 'production_input', -qty, prodId, 'production',
-               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId);
+               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prodSyncId);
       }
 
       // Outputs: record items + positive stock movements + update product cost_price (weighted avg)
@@ -108,10 +109,10 @@ router.post('/', auth, (req, res) => {
         `).run(prodId, output.product_id, qty, allocated, qty * allocated,
                randomUUID(), tenantId, branchId, deviceId);
         db.prepare(`
-          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+          INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)
         `).run(output.product_id, 'store', 'production_output', qty, prodId, 'production',
-               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId);
+               notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prodSyncId);
         // Update cost_price using weighted average across production runs
         if (allocated > 0) {
           const existing = db.prepare('SELECT cost_price FROM products WHERE id = ?').get(output.product_id);

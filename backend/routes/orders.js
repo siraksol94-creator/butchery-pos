@@ -22,11 +22,12 @@ router.post('/', auth, (req, res) => {
     const orderNum = syncConfig.generateNumber('ORD', 'orders');
 
     const order = db.transaction(() => {
+      const orderSyncId = randomUUID();
       const info = db.prepare(
         `INSERT INTO orders (order_number, customer_name, subtotal, tax_amount, total_amount, discount, amount_received, change_amount, payment_method, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
       ).run(orderNum, customer_name, subtotal, tax_amount, total_amount, discount || 0, amount_received || 0, change_amount || 0, payment_method || 'Cash', req.user.id,
-            randomUUID(), tenantId, branchId, deviceId);
+            orderSyncId, tenantId, branchId, deviceId);
 
       const orderId = info.lastInsertRowid;
 
@@ -37,10 +38,10 @@ router.post('/', auth, (req, res) => {
         ).run(orderId, item.product_id, item.product_name, item.quantity, item.unit_price, item.total_price,
               randomUUID(), tenantId, branchId, deviceId);
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`
         ).run(item.product_id, 'sales', 'sale', -item.quantity, orderId, 'order', req.user.id,
-              randomUUID(), tenantId, branchId, deviceId);
+              randomUUID(), tenantId, branchId, deviceId, orderSyncId);
       }
 
       return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
@@ -104,10 +105,10 @@ router.put('/:id/reverse', auth, (req, res) => {
       const items = db.prepare('SELECT * FROM order_items WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL').all(req.params.id);
       for (const item of items) {
         db.prepare(
-          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`
         ).run(item.product_id, 'sales', 'reverse', item.quantity, parseInt(req.params.id), 'order', req.user.id,
-              randomUUID(), tenantId, branchId, deviceId);
+              randomUUID(), tenantId, branchId, deviceId, order.sync_id);
       }
 
       db.prepare("UPDATE order_items SET reversed = 1, reversed_at = datetime('now'), synced=0 WHERE order_id = ? AND reversed = 0 AND deleted_at IS NULL").run(req.params.id);
@@ -135,10 +136,10 @@ router.put('/:id/items/:itemId/reverse', auth, (req, res) => {
 
       const { tenantId, branchId, deviceId } = syncConfig.getConfig();
       db.prepare(
-        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,0)`
+        `INSERT INTO stock_movements (product_id, location, movement_type, quantity, reference_id, reference_type, created_by, sync_id, tenant_id, branch_id, device_id, synced, reference_sync_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?)`
       ).run(item.product_id, 'sales', 'reverse', item.quantity, parseInt(req.params.id), 'order', req.user.id,
-            randomUUID(), tenantId, branchId, deviceId);
+            randomUUID(), tenantId, branchId, deviceId, order.sync_id);
 
       db.prepare("UPDATE order_items SET reversed = 1, reversed_at = datetime('now'), synced=0 WHERE id = ?").run(req.params.itemId);
 

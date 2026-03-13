@@ -404,6 +404,17 @@ db.exec(`
       addCol(t, 'updated_at', 'TEXT');
     }
   }
+
+  // Add reference_sync_id to stock_movements for cross-device FK integrity
+  addCol('stock_movements', 'reference_sync_id', 'TEXT');
+
+  // Backfill reference_sync_id for existing records (runs once; skips already-filled rows)
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM siv WHERE id = stock_movements.reference_id) WHERE reference_type = 'siv' AND reference_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM grn WHERE id = stock_movements.reference_id) WHERE reference_type = 'grn' AND reference_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM production WHERE id = stock_movements.reference_id) WHERE reference_type = 'production' AND reference_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM orders WHERE id = stock_movements.reference_id) WHERE reference_type = 'order' AND reference_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM stock_adjustments WHERE id = stock_movements.reference_id) WHERE reference_type = 'adjustment' AND reference_sync_id IS NULL`).run();
+  db.prepare(`UPDATE stock_movements SET reference_sync_id = (SELECT sync_id FROM sales_returns WHERE id = stock_movements.reference_id) WHERE reference_type = 'sales_return' AND reference_sync_id IS NULL`).run();
 })();
 
 // ─── Sync: initialise device_id ──────────────────────────────────────────────
