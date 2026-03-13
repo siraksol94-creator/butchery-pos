@@ -66,7 +66,7 @@ router.get('/product-summary', (req, res) => {
       FROM order_items oi
       INNER JOIN orders o ON o.id = oi.order_id
       WHERE o.deleted_at IS NULL
-        AND o.status != 'Reversed'
+        AND (o.status IS NULL OR o.status != 'Reversed')
         AND oi.deleted_at IS NULL
         AND (oi.reversed IS NULL OR oi.reversed = 0)
     `;

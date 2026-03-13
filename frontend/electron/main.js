@@ -57,17 +57,16 @@ ipcMain.handle('print-silent', (_event, html) => {
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false } });
     win.loadFile(tmpFile);
     win.webContents.once('did-finish-load', () => {
-      const result = win.webContents.print({ silent: true, printBackground: true, deviceName: 'POS-80' });
       const cleanup = () => { try { fs.unlinkSync(tmpFile); } catch (_) {} };
-      if (result && typeof result.then === 'function') {
-        // Electron 28+: print() returns a Promise
-        result
-          .then(() => { win.close(); cleanup(); resolve({ success: true }); })
-          .catch((err) => { win.close(); cleanup(); resolve({ success: false, reason: err.message }); });
-      } else {
-        // Older Electron: print() returns undefined, fire-and-forget
-        setTimeout(() => { win.close(); cleanup(); resolve({ success: true }); }, 1500);
-      }
+      win.webContents.print(
+        { silent: true, printBackground: true, deviceName: 'POS-80' },
+        (success, failureReason) => {
+          win.close();
+          cleanup();
+          if (success) resolve({ success: true });
+          else resolve({ success: false, reason: failureReason });
+        }
+      );
     });
     win.webContents.once('did-fail-load', (_e, code, desc) => {
       log('print-silent: did-fail-load: ' + code + ' ' + desc);
