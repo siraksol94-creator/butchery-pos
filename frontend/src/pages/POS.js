@@ -2,26 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getInventory, createOrder, getSettings } from '../services/api';
 import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+port React, { useState, useEffect, useRef } from 'react';
+import { getInventory, createOrder, getSettings } from '../services/api';
+import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
+const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
-const defaultProducts = [
-  { id: 1, name: 'Prime Beef Steak', category_name: 'Beef', selling_price: 30, current_stock: 50, unit: 'kg' },
-  { id: 2, name: 'Beef Ribs', category_name: 'Beef', selling_price: 25, current_stock: 35, unit: 'kg' },
-  { id: 3, name: 'Ground Beef', category_name: 'Beef', selling_price: 15, current_stock: 60, unit: 'kg' },
-  { id: 4, name: 'Chicken Breast', category_name: 'Chicken', selling_price: 10, current_stock: 80, unit: 'kg' },
-  { id: 5, name: 'Chicken Thighs', category_name: 'Chicken', selling_price: 8, current_stock: 75, unit: 'kg' },
-  { id: 6, name: 'Whole Chicken', category_name: 'Chicken', selling_price: 12, current_stock: 40, unit: 'kg' },
-  { id: 7, name: 'Pork Chops', category_name: 'Pork', selling_price: 20, current_stock: 45, unit: 'kg' },
-  { id: 8, name: 'Pork Belly', category_name: 'Pork', selling_price: 18, current_stock: 38, unit: 'kg' },
-  { id: 9, name: 'Lamb Shoulder', category_name: 'Lamb', selling_price: 30, current_stock: 25, unit: 'kg' },
-  { id: 10, name: 'Lamb Chops', category_name: 'Lamb', selling_price: 35, current_stock: 20, unit: 'kg' },
-  { id: 11, name: 'Pork Sausages', category_name: 'Processed', selling_price: 12, current_stock: 55, unit: 'pack' },
-  { id: 12, name: 'Beef Burgers', category_name: 'Processed', selling_price: 15, current_stock: 40, unit: 'pack' },
-];
 
 const getCategoryClass = () => 'badge-gray';
 
 const POS = () => {
-  const [products, setProducts] = useState(defaultProducts);
+  const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
