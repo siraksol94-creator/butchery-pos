@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getSIVs, getSIVStats, createSIV, updateSIV, getSIV, getProducts, getSettings } from '../services/api';
+import { getSIVs, getSIVStats, getSIVItemsSummary, createSIV, updateSIV, getSIV, getProducts, getSettings } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2, FiUpload } from 'react-icons/fi';
 
@@ -78,6 +78,10 @@ const SIV = () => {
   const [showSIVPrint, setShowSIVPrint] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
+  // ── View mode ─────────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState('by-siv'); // 'by-siv' | 'by-item'
+  const [itemsSummary, setItemsSummary] = useState([]);
+
   // ── Date filter ───────────────────────────────────────────────────
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo,   setFilterTo]   = useState(todayStr);
@@ -95,6 +99,14 @@ const SIV = () => {
     getProducts().then(r => { if (r.data?.length > 0) setProducts(r.data.filter(p => p.product_type !== 'raw_material')); }).catch(() => {});
     getSettings().then(r => setBusinessInfo(r.data?.business || {})).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (viewMode === 'by-item') {
+      getSIVItemsSummary(filterFrom, filterTo)
+        .then(r => setItemsSummary(r.data || []))
+        .catch(() => setItemsSummary([]));
+    }
+  }, [viewMode, filterFrom, filterTo]);
 
   // ── Filtered list ─────────────────────────────────────────────────
   const filteredSIVs = sivs.filter(siv => {
@@ -307,74 +319,122 @@ const SIV = () => {
         >
           Reset
         </button>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af' }}>
-          {filteredSIVs.length} SIV{filteredSIVs.length !== 1 ? 's' : ''}
-          {hasFilter && <> &nbsp;·&nbsp; Total: <strong style={{ color: '#2563eb' }}>${filteredTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></>}
-        </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', borderRadius: 7, border: '1px solid #d1d5db', overflow: 'hidden' }}>
+            {[{ key: 'by-siv', label: 'By SIV No' }, { key: 'by-item', label: 'By Item' }].map(({ key, label }) => (
+              <button key={key} onClick={() => setViewMode(key)} style={{
+                padding: '5px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+                background: viewMode === key ? '#2563eb' : '#fff',
+                color: viewMode === key ? '#fff' : '#6b7280',
+              }}>{label}</button>
+            ))}
+          </div>
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>
+            {viewMode === 'by-siv'
+              ? <>{filteredSIVs.length} SIV{filteredSIVs.length !== 1 ? 's' : ''}{hasFilter && <> &nbsp;·&nbsp; Total: <strong style={{ color: '#2563eb' }}>${filteredTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></>}</>
+              : <>{itemsSummary.length} item{itemsSummary.length !== 1 ? 's' : ''} &nbsp;·&nbsp; Total: <strong style={{ color: '#2563eb' }}>${itemsSummary.reduce((s, r) => s + parseFloat(r.total_value || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></>
+            }
+          </span>
+        </div>
       </div>
 
       {/* ── SIV Table ─────────────────────────────────────────────── */}
       <div className="data-table-container">
-        {filteredSIVs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-            {hasFilter ? 'No SIVs found for the selected date range.' : t('noData')}
-          </div>
+        {viewMode === 'by-siv' ? (
+          filteredSIVs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+              {hasFilter ? 'No SIVs found for the selected date range.' : t('noData')}
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>SIV Number</th><th>{t('date')}</th><th>{t('department')}</th>
+                  <th>Items</th><th>{t('total')} {t('amount')}</th><th>{t('status')}</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSIVs.map(siv => (
+                  <tr key={siv.id}>
+                    <td style={{ fontWeight: 500 }}>{siv.siv_number}</td>
+                    <td>{formatDate(siv.date)}</td>
+                    <td>{siv.department}</td>
+                    <td style={{ textAlign: 'center' }}>{siv.total_items}</td>
+                    <td>${parseFloat(siv.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td>
+                      <span className={`badge ${siv.status === 'Issued' ? 'badge-green' : 'badge-yellow'}`}>
+                        {siv.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => openView(siv)}
+                          disabled={viewLoading}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '5px 11px', borderRadius: 6, border: '1px solid #e5e7eb',
+                            background: '#f9fafb', color: '#6b7280', cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.borderColor = '#86efac'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                        >
+                          <FiEye size={12} /> View
+                        </button>
+                        <button
+                          onClick={() => openEdit(siv)}
+                          disabled={editLoading}
+                          title="Edit SIV"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 30, height: 30, borderRadius: 6, border: '1px solid #e5e7eb',
+                            background: '#f9fafb', color: '#6b7280', cursor: 'pointer',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                        >
+                          <FiEdit2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>SIV Number</th><th>{t('date')}</th><th>{t('department')}</th>
-                <th>Items</th><th>{t('total')} {t('amount')}</th><th>{t('status')}</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSIVs.map(siv => (
-                <tr key={siv.id}>
-                  <td style={{ fontWeight: 500 }}>{siv.siv_number}</td>
-                  <td>{formatDate(siv.date)}</td>
-                  <td>{siv.department}</td>
-                  <td style={{ textAlign: 'center' }}>{siv.total_items}</td>
-                  <td>${parseFloat(siv.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  <td>
-                    <span className={`badge ${siv.status === 'Issued' ? 'badge-green' : 'badge-yellow'}`}>
-                      {siv.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => openView(siv)}
-                        disabled={viewLoading}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '5px 11px', borderRadius: 6, border: '1px solid #e5e7eb',
-                          background: '#f9fafb', color: '#6b7280', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = '#16a34a'; e.currentTarget.style.borderColor = '#86efac'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
-                      >
-                        <FiEye size={12} /> View
-                      </button>
-                      <button
-                        onClick={() => openEdit(siv)}
-                        disabled={editLoading}
-                        title="Edit SIV"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 30, height: 30, borderRadius: 6, border: '1px solid #e5e7eb',
-                          background: '#f9fafb', color: '#6b7280', cursor: 'pointer',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
-                      >
-                        <FiEdit2 size={13} />
-                      </button>
-                    </div>
+          itemsSummary.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>No items issued in the selected date range.</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Item Name</th><th>Unit</th>
+                  <th style={{ textAlign: 'right' }}>Total Qty</th>
+                  <th style={{ textAlign: 'right' }}>Total Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemsSummary.map((row, idx) => (
+                  <tr key={row.product_id}>
+                    <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 600 }}>{row.product_name}</td>
+                    <td style={{ color: '#6b7280' }}>{row.unit}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(row.total_quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb', fontFamily: 'monospace' }}>${parseFloat(row.total_value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#f0f9ff', fontWeight: 700, borderTop: '2px solid #93c5fd' }}>
+                  <td colSpan={4} style={{ textAlign: 'right', color: '#1d4ed8' }}>TOTAL</td>
+                  <td style={{ textAlign: 'right', color: '#1d4ed8', fontFamily: 'monospace' }}>
+                    ${itemsSummary.reduce((s, r) => s + parseFloat(r.total_value || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </tfoot>
+            </table>
+          )
         )}
       </div>
 

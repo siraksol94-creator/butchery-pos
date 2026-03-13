@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getSalesInventory, saveSalesActualBalance } from '../services/api';
+import { getSalesInventory, getSIVBreakdown, saveSalesActualBalance } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   FiSearch, FiPackage, FiAlertTriangle, FiCalendar, FiSave,
-  FiCheckCircle, FiXCircle, FiEdit2, FiTrendingUp, FiDollarSign, FiPrinter
+  FiCheckCircle, FiXCircle, FiEdit2, FiTrendingUp, FiDollarSign, FiPrinter, FiChevronDown
 } from 'react-icons/fi';
 import PrintPreview from '../components/PrintPreview';
 
@@ -22,6 +22,19 @@ const SalesInventory = () => {
   const [savedRows, setSavedRows] = useState({});   // rows confirmed saved on server
   const [editingRows, setEditingRows] = useState({}); // rows user unlocked for re-edit
   const [otherModal, setOtherModal] = useState(null); // { productId, text }
+  const [expandedRows, setExpandedRows] = useState({}); // productId → true/false
+  const [sivBreakdowns, setSivBreakdowns] = useState({}); // productId → rows[]
+
+  const toggleExpand = async (productId) => {
+    const isOpen = expandedRows[productId];
+    setExpandedRows(prev => ({ ...prev, [productId]: !isOpen }));
+    if (!isOpen && !sivBreakdowns[productId]) {
+      try {
+        const res = await getSIVBreakdown(filterDate, productId);
+        setSivBreakdowns(prev => ({ ...prev, [productId]: res.data || [] }));
+      } catch { setSivBreakdowns(prev => ({ ...prev, [productId]: [] })); }
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -57,7 +70,11 @@ const SalesInventory = () => {
     }
   };
 
-  useEffect(() => { loadData(filterDate); }, [filterDate]);
+  useEffect(() => {
+    loadData(filterDate);
+    setExpandedRows({});
+    setSivBreakdowns({});
+  }, [filterDate]);
 
   const filtered = products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
@@ -372,9 +389,20 @@ const SalesInventory = () => {
                   const r = computeRow(product);
                   const locked = isLocked(product.id);
                   const hasActual = actualBalances[product.id] !== undefined && actualBalances[product.id] !== '';
+                  const isExpanded = !!expandedRows[product.id];
                   return (
-                    <tr key={product.id} style={{ background: locked ? '#f9fafb' : undefined }}>
-                      <td><strong>{product.name}</strong></td>
+                    <React.Fragment key={product.id}>
+                    <tr style={{ background: locked ? '#f9fafb' : undefined }}>
+                      <td>
+                        <div
+                          onClick={() => toggleExpand(product.id)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                          title="Click to see SIV breakdown"
+                        >
+                          <FiChevronDown size={13} style={{ color: '#9ca3af', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                          <strong style={{ color: '#111827' }}>{product.name}</strong>
+                        </div>
+                      </td>
                       <td style={{ textAlign: 'right' }}>{r.openingBalance.toLocaleString()}</td>
                       <td style={{ textAlign: 'right', color: r.input > 0 ? '#2563eb' : '#9ca3af' }}>{r.input.toLocaleString()}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.totalStock.toLocaleString()}</td>
@@ -508,6 +536,39 @@ const SalesInventory = () => {
                       </td>
                       <td style={{ textAlign: 'right' }}>${fmt(r.stockingPrice)}</td>
                     </tr>
+                    {isExpanded && (
+                      <tr style={{ background: '#f0f9ff' }}>
+                        <td colSpan={16} style={{ padding: '6px 24px 10px 32px' }}>
+                          {!sivBreakdowns[product.id] ? (
+                            <span style={{ fontSize: 12, color: '#9ca3af' }}>Loading...</span>
+                          ) : sivBreakdowns[product.id].length === 0 ? (
+                            <span style={{ fontSize: 12, color: '#9ca3af' }}>No SIV inputs found for this date.</span>
+                          ) : (
+                            <table style={{ fontSize: 12, borderCollapse: 'collapse', width: 'auto' }}>
+                              <thead>
+                                <tr style={{ color: '#6b7280' }}>
+                                  <th style={{ padding: '3px 14px 3px 0', fontWeight: 600, textAlign: 'left' }}>SIV No</th>
+                                  <th style={{ padding: '3px 14px 3px 0', fontWeight: 600, textAlign: 'left' }}>Department</th>
+                                  <th style={{ padding: '3px 14px 3px 0', fontWeight: 600, textAlign: 'left' }}>Time</th>
+                                  <th style={{ padding: '3px 0', fontWeight: 600, textAlign: 'right' }}>Qty</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sivBreakdowns[product.id].map((row, i) => (
+                                  <tr key={i}>
+                                    <td style={{ padding: '2px 14px 2px 0', color: '#2563eb', fontWeight: 600 }}>{row.siv_number}</td>
+                                    <td style={{ padding: '2px 14px 2px 0', color: '#374151' }}>{row.department}</td>
+                                    <td style={{ padding: '2px 14px 2px 0', color: '#6b7280' }}>{new Date(row.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td style={{ padding: '2px 0', textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>{parseFloat(row.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

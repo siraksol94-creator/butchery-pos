@@ -71,6 +71,29 @@ router.post('/', auth, (req, res) => {
   }
 });
 
+router.get('/items-summary', (req, res) => {
+  try {
+    const { from, to } = req.query;
+    let sql = `
+      SELECT p.id AS product_id, p.name AS product_name, p.unit,
+        SUM(si.quantity) AS total_quantity,
+        SUM(si.total_price) AS total_value
+      FROM siv_items si
+      JOIN siv s ON s.id = si.siv_id
+      JOIN products p ON p.id = si.product_id
+      WHERE s.deleted_at IS NULL
+    `;
+    const params = [];
+    if (from) { sql += ' AND s.date >= ?'; params.push(from); }
+    if (to)   { sql += ' AND s.date <= ?'; params.push(to); }
+    sql += ' GROUP BY p.id, p.name, p.unit ORDER BY p.name ASC';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const siv = db.prepare('SELECT * FROM siv WHERE id = ? AND deleted_at IS NULL').get(req.params.id);

@@ -161,10 +161,12 @@ router.get('/sales', (req, res) => {
       ) opening_agg ON opening_agg.product_id = p.id
 
       LEFT JOIN (
-        SELECT product_id, SUM(quantity) AS input
-        FROM stock_movements WHERE location = 'sales' AND movement_type = 'siv'
-          AND created_at >= @date AND created_at < date(@date, '+1 day')
-        GROUP BY product_id
+        SELECT sm.product_id, SUM(sm.quantity) AS input
+        FROM stock_movements sm
+        JOIN siv s ON s.id = sm.reference_id
+        WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
+          AND s.date = @date AND sm.deleted_at IS NULL
+        GROUP BY sm.product_id
       ) input_agg ON input_agg.product_id = p.id
 
       LEFT JOIN (
@@ -204,6 +206,24 @@ router.get('/sales', (req, res) => {
 
       ORDER BY p.name
     `).all({ date: selectedDate });
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/inventory/sales/siv-breakdown?date=&product_id=
+router.get('/sales/siv-breakdown', (req, res) => {
+  try {
+    const { date, product_id } = req.query;
+    const rows = db.prepare(`
+      SELECT s.siv_number, s.department, sm.quantity, sm.created_at
+      FROM stock_movements sm
+      JOIN siv s ON s.id = sm.reference_id
+      WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
+        AND sm.product_id = ? AND s.date = ? AND sm.deleted_at IS NULL
+      ORDER BY sm.created_at ASC
+    `).all(product_id, date);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });

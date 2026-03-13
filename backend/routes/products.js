@@ -115,15 +115,28 @@ router.put('/:id', auth, (req, res) => {
   try {
     const { code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
             product_type, ub_number_start, ub_number_length, ub_quantity_start, ub_quantity_length, ub_decimal_start } = req.body;
-    db.prepare(
-      `UPDATE products SET code=?, name=?, category_id=?, unit=?, cost_price=?, selling_price=?,
-       current_stock=?, min_stock=?, product_type=?,
-       ub_number_start=?, ub_number_length=?, ub_quantity_start=?, ub_quantity_length=?, ub_decimal_start=?,
-       updated_at=datetime('now'), synced=0 WHERE id=?`
-    ).run(code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
-          product_type || 'sellable',
-          ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
-          req.params.id);
+    db.transaction(() => {
+      db.prepare(
+        `UPDATE products SET code=?, name=?, category_id=?, unit=?, cost_price=?, selling_price=?,
+         current_stock=?, min_stock=?, product_type=?,
+         ub_number_start=?, ub_number_length=?, ub_quantity_start=?, ub_quantity_length=?, ub_decimal_start=?,
+         updated_at=datetime('now'), synced=0 WHERE id=?`
+      ).run(code, name, category_id, unit, cost_price, selling_price, current_stock, min_stock,
+            product_type || 'sellable',
+            ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
+            req.params.id);
+      // Sync the opening stock movement with the new current_stock value
+      db.prepare("DELETE FROM stock_movements WHERE product_id=? AND movement_type='opening' AND location='store'")
+        .run(req.params.id);
+      if (parseFloat(current_stock) > 0) {
+        const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+        db.prepare(
+          `INSERT INTO stock_movements (product_id, location, movement_type, quantity, notes, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`
+        ).run(req.params.id, 'store', 'opening', parseFloat(current_stock), 'Opening balance',
+              randomUUID(), tenantId, branchId, deviceId);
+      }
+    })();
     const row = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     res.json(row);
   } catch (error) {

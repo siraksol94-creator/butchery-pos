@@ -87,6 +87,7 @@ export const deleteGRN = (id) => api.delete(`/grn/${id}`);
 export const getInventory = () => api.get('/inventory');
 export const getStoreInventory = () => api.get('/inventory/store');
 export const getSalesInventory = (params) => api.get('/inventory/sales', { params });
+export const getSIVBreakdown = (date, product_id) => api.get('/inventory/sales/siv-breakdown', { params: { date, product_id } });
 export const saveSalesActualBalance = (data) => api.post('/inventory/sales/actual', data);
 export const getInventoryStats = () => api.get('/inventory/stats');
 export const getBinCard = (params) => api.get('/inventory/bin-card', { params });
@@ -94,6 +95,7 @@ export const getBinCard = (params) => api.get('/inventory/bin-card', { params })
 // SIV
 export const getSIVs = () => api.get('/siv');
 export const getSIVStats = () => api.get('/siv/stats');
+export const getSIVItemsSummary = (from, to) => api.get('/siv/items-summary', { params: { from, to } });
 export const createSIV = (data) => api.post('/siv', data);
 export const getSIV = (id) => api.get(`/siv/${id}`);
 export const updateSIV = (id, data) => api.put(`/siv/${id}`, data);
