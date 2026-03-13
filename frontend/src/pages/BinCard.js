@@ -34,7 +34,7 @@ const BinCard = () => {
   const [showPrint, setShowPrint]       = useState(false);
 
   useEffect(() => {
-    getProducts().then(r => setProducts(r.data || [])).catch(() => {});
+    getProducts().then(r => setProducts((r.data || []).sort((a, b) => a.name.localeCompare(b.name)))).catch(() => {});
     getSettings().then(r => setBusinessInfo(r.data?.business || {})).catch(() => {});
   }, []);
 

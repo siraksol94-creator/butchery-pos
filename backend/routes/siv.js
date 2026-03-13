@@ -6,7 +6,7 @@ const { randomUUID } = require('crypto');
 
 router.get('/', (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM siv WHERE deleted_at IS NULL ORDER BY date DESC').all();
+    const rows = db.prepare('SELECT * FROM siv WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -94,6 +94,27 @@ router.get('/items-summary', (req, res) => {
   }
 });
 
+router.get('/item-breakdown', (req, res) => {
+  try {
+    const { product_id, from, to } = req.query;
+    if (!product_id) return res.status(400).json({ error: 'product_id is required' });
+    let sql = `
+      SELECT s.siv_number, s.date, s.created_at, si.quantity, si.unit_price, si.total_price
+      FROM siv_items si
+      JOIN siv s ON s.id = si.siv_id
+      WHERE si.product_id = ? AND s.deleted_at IS NULL
+    `;
+    const params = [product_id];
+    if (from) { sql += ' AND s.date >= ?'; params.push(from); }
+    if (to)   { sql += ' AND s.date <= ?'; params.push(to); }
+    sql += ' ORDER BY s.created_at DESC';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const siv = db.prepare('SELECT * FROM siv WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
@@ -137,6 +158,19 @@ router.put('/:id', auth, (req, res) => {
 
     const updated = db.prepare('SELECT * FROM siv WHERE id=?').get(sivId);
     res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/:id', auth, (req, res) => {
+  try {
+    db.transaction(() => {
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_id=? AND reference_type='siv' AND deleted_at IS NULL").run(req.params.id);
+      db.prepare("UPDATE siv_items SET deleted_at=datetime('now'), synced=0 WHERE siv_id=?").run(req.params.id);
+      db.prepare("UPDATE siv SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(req.params.id);
+    })();
+    res.json({ message: 'SIV deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

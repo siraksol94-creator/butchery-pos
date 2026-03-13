@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getSIVs, getSIVStats, getSIVItemsSummary, createSIV, updateSIV, getSIV, getProducts, getSettings } from '../services/api';
+import { getSIVs, getSIVStats, getSIVItemsSummary, createSIV, updateSIV, getSIV, deleteSIV, getSIVItemBreakdown, getProducts, getSettings } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2, FiUpload } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2, FiUpload, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 
 const defaultStats = { totalSIVs: 0, thisMonth: 0, totalValue: 0, pending: 0 };
 const emptyItem = () => ({ product_id: '', product_text: '', quantity: '', unit_price: '', total_price: 0 });
@@ -81,6 +81,11 @@ const SIV = () => {
   // ── View mode ─────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState('by-siv'); // 'by-siv' | 'by-item'
   const [itemsSummary, setItemsSummary] = useState([]);
+  const [expandedItems, setExpandedItems] = useState({});   // product_id → true/false
+  const [itemBreakdowns, setItemBreakdowns] = useState({}); // product_id → rows
+
+  // ── Delete SIV ────────────────────────────────────────────────────
+  const [deletingSIV, setDeletingSIV] = useState(false);
 
   // ── Date filter ───────────────────────────────────────────────────
   const [filterFrom, setFilterFrom] = useState(todayStr);
@@ -102,6 +107,8 @@ const SIV = () => {
 
   useEffect(() => {
     if (viewMode === 'by-item') {
+      setExpandedItems({});
+      setItemBreakdowns({});
       getSIVItemsSummary(filterFrom, filterTo)
         .then(r => setItemsSummary(r.data || []))
         .catch(() => setItemsSummary([]));
@@ -241,6 +248,37 @@ const SIV = () => {
       setFormError(err.response?.data?.error || 'Failed to save SIV. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteSIV = async () => {
+    if (!viewSIV) return;
+    if (!window.confirm(`Delete ${viewSIV.siv_number}? This will reverse all stock movements.`)) return;
+    setDeletingSIV(true);
+    try {
+      await deleteSIV(viewSIV.id);
+      setViewSIV(null);
+      await fetchData();
+      if (viewMode === 'by-item') {
+        getSIVItemsSummary(filterFrom, filterTo).then(r => setItemsSummary(r.data || [])).catch(() => {});
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete SIV.');
+    } finally {
+      setDeletingSIV(false);
+    }
+  };
+
+  const toggleItemExpand = async (productId) => {
+    setExpandedItems(prev => {
+      const next = { ...prev, [productId]: !prev[productId] };
+      return next;
+    });
+    if (!itemBreakdowns[productId]) {
+      try {
+        const res = await getSIVItemBreakdown(productId, filterFrom, filterTo);
+        setItemBreakdowns(prev => ({ ...prev, [productId]: res.data || [] }));
+      } catch { setItemBreakdowns(prev => ({ ...prev, [productId]: [] })); }
     }
   };
 
@@ -415,15 +453,64 @@ const SIV = () => {
                 </tr>
               </thead>
               <tbody>
-                {itemsSummary.map((row, idx) => (
-                  <tr key={row.product_id}>
-                    <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{row.product_name}</td>
-                    <td style={{ color: '#6b7280' }}>{row.unit}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(row.total_quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb', fontFamily: 'monospace' }}>${parseFloat(row.total_value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                ))}
+                {itemsSummary.map((row, idx) => {
+                  const isExpanded = !!expandedItems[row.product_id];
+                  const breakdown = itemBreakdowns[row.product_id] || [];
+                  return (
+                    <React.Fragment key={row.product_id}>
+                      <tr
+                        onClick={() => toggleItemExpand(row.product_id)}
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0f9ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                      >
+                        <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
+                        <td style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {isExpanded ? <FiChevronDown size={13} style={{ color: '#2563eb' }} /> : <FiChevronRight size={13} style={{ color: '#9ca3af' }} />}
+                          {row.product_name}
+                        </td>
+                        <td style={{ color: '#6b7280' }}>{row.unit}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(row.total_quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb', fontFamily: 'monospace' }}>${parseFloat(row.total_value).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
+                            <div style={{ padding: '8px 24px 12px 40px' }}>
+                              {breakdown.length === 0 ? (
+                                <div style={{ fontSize: 12, color: '#9ca3af', padding: '4px 0' }}>No SIV records found.</div>
+                              ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                  <thead>
+                                    <tr style={{ color: '#6b7280' }}>
+                                      <th style={{ textAlign: 'left', fontWeight: 600, padding: '3px 8px', borderBottom: '1px solid #e5e7eb' }}>SIV No</th>
+                                      <th style={{ textAlign: 'left', fontWeight: 600, padding: '3px 8px', borderBottom: '1px solid #e5e7eb' }}>Date</th>
+                                      <th style={{ textAlign: 'left', fontWeight: 600, padding: '3px 8px', borderBottom: '1px solid #e5e7eb' }}>Time</th>
+                                      <th style={{ textAlign: 'right', fontWeight: 600, padding: '3px 8px', borderBottom: '1px solid #e5e7eb' }}>Qty</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {breakdown.map((b, i) => {
+                                      const dt = new Date(b.created_at);
+                                      return (
+                                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '4px 8px', fontWeight: 500, color: '#1d4ed8' }}>{b.siv_number}</td>
+                                          <td style={{ padding: '4px 8px', color: '#374151' }}>{new Date(b.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                                          <td style={{ padding: '4px 8px', color: '#374151' }}>{dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>{parseFloat(b.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr style={{ background: '#f0f9ff', fontWeight: 700, borderTop: '2px solid #93c5fd' }}>
@@ -532,14 +619,25 @@ const SIV = () => {
 
             {/* Footer */}
             <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                onClick={() => setShowSIVPrint(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.borderColor = '#9ca3af'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#d1d5db'; }}
-              >
-                <FiPrinter size={14} /> Print
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setShowSIVPrint(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.borderColor = '#9ca3af'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#d1d5db'; }}
+                >
+                  <FiPrinter size={14} /> Print
+                </button>
+                <button
+                  onClick={handleDeleteSIV}
+                  disabled={deletingSIV}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                >
+                  <FiTrash2 size={14} /> {deletingSIV ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => { openEdit({ id: viewSIV.id }); setViewSIV(null); }}

@@ -99,6 +99,8 @@ export const getSIVItemsSummary = (from, to) => api.get('/siv/items-summary', { 
 export const createSIV = (data) => api.post('/siv', data);
 export const getSIV = (id) => api.get(`/siv/${id}`);
 export const updateSIV = (id, data) => api.put(`/siv/${id}`, data);
+export const deleteSIV = (id) => api.delete(`/siv/${id}`);
+export const getSIVItemBreakdown = (product_id, from, to) => api.get('/siv/item-breakdown', { params: { product_id, from, to } });
 
 // Cash Receipts
 export const getCashReceipts = () => api.get('/cash-receipts');
