@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { version } from '../../package.json';
+import pkg from '../../package.json';
+const { version } = pkg;
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
