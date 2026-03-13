@@ -464,7 +464,8 @@ db.exec(`
   // Add product_sync_id to daily_actual_balance + unique index for cross-device conflict resolution
   addCol('daily_actual_balance', 'product_sync_id', 'TEXT');
   db.prepare(`UPDATE daily_actual_balance SET product_sync_id = (SELECT sync_id FROM products WHERE id = daily_actual_balance.product_id) WHERE product_sync_id IS NULL`).run();
-  try { db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_dab_product_sync_date ON daily_actual_balance (product_sync_id, date) WHERE product_sync_id IS NOT NULL`).run(); } catch (_) {}
+  try { db.prepare(`DROP INDEX IF EXISTS idx_dab_product_sync_date`).run(); } catch (_) {}
+  try { db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_dab_product_sync_date ON daily_actual_balance (product_sync_id, date)`).run(); } catch (e) { slog('idx_dab_psync_date: ' + e.message); }
 
   // Backfill sync_id + tenant_id + branch_id + device_id for records created before sync was set up
   // Uses SQLite randomblob(16) for UUID generation — runs once per row, skips already-filled rows
