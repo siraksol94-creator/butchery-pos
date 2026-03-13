@@ -23,6 +23,7 @@ const movementLabel = (type) => {
 const BinCard = () => {
   const [products, setProducts]         = useState([]);
   const [productId, setProductId]       = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [from, setFrom]                 = useState(firstOfMonth);
   const [to, setTo]                     = useState(todayStr);
   const [rows, setRows]                 = useState([]);
@@ -39,6 +40,12 @@ const BinCard = () => {
   }, []);
 
   const selectedProduct = products.find(p => String(p.id) === String(productId));
+
+  const handleProductInput = (val) => {
+    setProductSearch(val);
+    const match = products.find(p => `${p.name}${p.unit ? ` (${p.unit})` : ''}` === val);
+    setProductId(match ? String(match.id) : '');
+  };
 
   const handleSearch = async () => {
     if (!productId) { setError('Please select a product.'); return; }
@@ -97,16 +104,18 @@ const BinCard = () => {
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '18px 20px', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
         <div style={{ flex: '2 1 220px', minWidth: 180 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Product *</label>
-          <select
-            value={productId}
-            onChange={e => setProductId(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, color: '#111827', background: '#fff' }}
-          >
-            <option value="">— Select product —</option>
+          <input
+            list="bincard-products"
+            value={productSearch}
+            onChange={e => handleProductInput(e.target.value)}
+            placeholder="Type or select a product…"
+            style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, color: '#111827', background: '#fff', boxSizing: 'border-box' }}
+          />
+          <datalist id="bincard-products">
             {products.map(p => (
-              <option key={p.id} value={p.id}>{p.name} {p.unit ? `(${p.unit})` : ''}</option>
+              <option key={p.id} value={`${p.name}${p.unit ? ` (${p.unit})` : ''}`} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div style={{ flex: '1 1 140px', minWidth: 130 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>From</label>

@@ -84,11 +84,11 @@ router.get('/store', (req, res) => {
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN (
         SELECT product_id, SUM(quantity) AS store_balance
-        FROM stock_movements WHERE location = 'store' GROUP BY product_id
+        FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
       ) store_agg ON store_agg.product_id = p.id
       LEFT JOIN (
         SELECT product_id, SUM(quantity) AS opening_balance
-        FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' GROUP BY product_id
+        FROM stock_movements WHERE location = 'store' AND movement_type = 'opening' AND deleted_at IS NULL GROUP BY product_id
       ) opening_agg ON opening_agg.product_id = p.id
       LEFT JOIN (
         SELECT product_id,

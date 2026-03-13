@@ -42,7 +42,7 @@ router.get('/', (req, res) => {
                  LEFT JOIN categories c ON p.category_id = c.id
                  LEFT JOIN (
                    SELECT product_id, SUM(quantity) as store_balance
-                   FROM stock_movements WHERE location = 'store' GROUP BY product_id
+                   FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL GROUP BY product_id
                  ) store_agg ON store_agg.product_id = p.id
                  LEFT JOIN (
                    SELECT product_id, SUM(quantity) as sales_balance
@@ -126,7 +126,7 @@ router.put('/:id', auth, (req, res) => {
             ub_number_start ?? 1, ub_number_length ?? 6, ub_quantity_start ?? 7, ub_quantity_length ?? 0, ub_decimal_start ?? 2,
             req.params.id);
       // Sync the opening stock movement with the new current_stock value
-      db.prepare("DELETE FROM stock_movements WHERE product_id=? AND movement_type='opening' AND location='store'")
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE product_id=? AND movement_type='opening' AND location='store' AND deleted_at IS NULL")
         .run(req.params.id);
       if (parseFloat(current_stock) > 0) {
         const { tenantId, branchId, deviceId } = syncConfig.getConfig();

@@ -272,15 +272,12 @@ const POS = () => {
   const change = Math.max(0, parseFloat(amountReceived || 0) - total);
 
   const printDirect = (html) => {
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-      return;
-    }
     const w = window.open('', '_blank', 'width=420,height=600');
     if (!w) return;
     w.document.write(html);
     w.document.close();
     w.focus();
+    w.onafterprint = () => w.close();
     setTimeout(() => w.print(), 250);
   };
 
