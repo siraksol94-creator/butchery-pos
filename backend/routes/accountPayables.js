@@ -1,25 +1,25 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
 
-// Supplier ledger — derived from GRN (owed) and Payment Vouchers (paid)
+// Supplier ledger — derived from GRN (owed) and AP Payments (paid)
 router.get('/', (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT
         s.id,
+        s.sync_id,
         s.name AS supplier_name,
         s.phone,
         COALESCE(grn_totals.total_amount, 0) AS total_purchases,
         COALESCE(grn_totals.grn_count, 0)    AS grn_count,
         grn_totals.last_grn_date,
-        COALESCE(pv_totals.total_paid, 0)    AS total_paid,
-        COALESCE(pv_totals.pv_count, 0)      AS pv_count,
-        COALESCE(grn_totals.total_amount, 0) - COALESCE(pv_totals.total_paid, 0) AS balance,
+        COALESCE(ap_totals.total_paid, 0)    AS total_paid,
+        COALESCE(ap_totals.ap_count, 0)      AS pv_count,
+        COALESCE(grn_totals.total_amount, 0) - COALESCE(ap_totals.total_paid, 0) AS balance,
         CASE
-          WHEN COALESCE(grn_totals.total_amount, 0) = 0                                                      THEN 'No Purchases'
-          WHEN COALESCE(grn_totals.total_amount, 0) - COALESCE(pv_totals.total_paid, 0) <= 0               THEN 'Paid'
-          WHEN COALESCE(pv_totals.total_paid, 0) > 0                                                        THEN 'Partial'
+          WHEN COALESCE(grn_totals.total_amount, 0) = 0                                               THEN 'No Purchases'
+          WHEN COALESCE(grn_totals.total_amount, 0) - COALESCE(ap_totals.total_paid, 0) <= 0         THEN 'Paid'
+          WHEN COALESCE(ap_totals.total_paid, 0) > 0                                                  THEN 'Partial'
           ELSE 'Unpaid'
         END AS status
       FROM suppliers s
@@ -33,13 +33,13 @@ router.get('/', (req, res) => {
         GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT paid_to,
+        SELECT supplier_id,
           SUM(amount) AS total_paid,
-          COUNT(*) AS pv_count
-        FROM payment_vouchers
-        WHERE category = 'Supplier' AND deleted_at IS NULL
-        GROUP BY paid_to
-      ) pv_totals ON s.name = pv_totals.paid_to
+          COUNT(*) AS ap_count
+        FROM ap_payments
+        WHERE deleted_at IS NULL
+        GROUP BY supplier_id
+      ) ap_totals ON s.id = ap_totals.supplier_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL
       ORDER BY balance DESC
     `).all();
@@ -55,18 +55,18 @@ router.get('/stats', (req, res) => {
     const row = db.prepare(`
       SELECT
         COALESCE(SUM(grn_totals.total_amount), 0) AS total_purchases,
-        COALESCE(SUM(pv_totals.total_paid), 0)    AS total_paid,
-        COALESCE(SUM(grn_totals.total_amount), 0) - COALESCE(SUM(pv_totals.total_paid), 0) AS outstanding
+        COALESCE(SUM(ap_totals.total_paid), 0)    AS total_paid,
+        COALESCE(SUM(grn_totals.total_amount), 0) - COALESCE(SUM(ap_totals.total_paid), 0) AS outstanding
       FROM suppliers s
       LEFT JOIN (
         SELECT supplier_sync_id, SUM(total_amount) AS total_amount
         FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT paid_to, SUM(amount) AS total_paid
-        FROM payment_vouchers WHERE category = 'Supplier' AND deleted_at IS NULL
-        GROUP BY paid_to
-      ) pv_totals ON s.name = pv_totals.paid_to
+        SELECT supplier_id, SUM(amount) AS total_paid
+        FROM ap_payments WHERE deleted_at IS NULL
+        GROUP BY supplier_id
+      ) ap_totals ON s.id = ap_totals.supplier_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL
     `).get();
 
@@ -78,12 +78,12 @@ router.get('/stats', (req, res) => {
         FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT paid_to, SUM(amount) AS total_paid
-        FROM payment_vouchers WHERE category = 'Supplier' AND deleted_at IS NULL
-        GROUP BY paid_to
-      ) pv_totals ON s.name = pv_totals.paid_to
+        SELECT supplier_id, SUM(amount) AS total_paid
+        FROM ap_payments WHERE deleted_at IS NULL
+        GROUP BY supplier_id
+      ) ap_totals ON s.id = ap_totals.supplier_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL
-        AND grn_totals.total_amount - COALESCE(pv_totals.total_paid, 0) > 0
+        AND grn_totals.total_amount - COALESCE(ap_totals.total_paid, 0) > 0
     `).get();
 
     res.json({
