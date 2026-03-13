@@ -239,11 +239,13 @@ router.post('/push', (req, res) => {
             }
           } else if (hasUpdatedAt) {
             // Existing record — last-write-wins based on updated_at
-            const incomingUpdatedAt = row.updated_at || row.created_at || '1970-01-01';
-            const existingUpdatedAt = existing.updated_at || existing.created_at || '1970-01-01';
+            // Allow 60-second clock-skew tolerance to handle devices whose clocks are slightly behind VPS
+            const CLOCK_SKEW_MS = 60_000;
+            const incomingTs = new Date(row.updated_at || row.created_at || '1970-01-01').getTime();
+            const existingTs = new Date(existing.updated_at || existing.created_at || '1970-01-01').getTime();
 
-            if (incomingUpdatedAt >= existingUpdatedAt) {
-              // Incoming is newer — update
+            if (incomingTs + CLOCK_SKEW_MS >= existingTs) {
+              // Incoming is newer (or within skew tolerance) — accept
               const updateCols = cols.filter(c => c !== 'id' && c !== 'sync_id' && row[c] !== undefined);
               const setClause = updateCols.map(c => `${c} = ?`).join(', ');
               const values = [...updateCols.map(c => row[c]), row.sync_id];
@@ -251,7 +253,7 @@ router.post('/push', (req, res) => {
               // Stamp VPS receive time so pull filters on other devices work correctly
               db.prepare(`UPDATE ${table} SET updated_at = datetime('now') WHERE sync_id = ?`).run(row.sync_id);
             } else {
-              // Local is newer — report conflict (incoming loses)
+              // VPS has a significantly newer version — report conflict (incoming loses)
               conflicts.push({ table, sync_id: row.sync_id, reason: 'stale' });
             }
           } else {
