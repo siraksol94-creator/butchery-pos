@@ -41,9 +41,9 @@ const AccountPayables = () => {
     if (!form.date) { setError('Select a date.'); return; }
     setSaving(true);
     try {
-      await createPaymentVoucher({
-        paid_to: payModal.supplier_name,
-        category: 'Supplier',
+      await createApPayment({
+        supplier_id: payModal.id,
+        supplier_name: payModal.supplier_name,
         amount: parseFloat(form.amount),
         date: form.date,
         description: form.description,
