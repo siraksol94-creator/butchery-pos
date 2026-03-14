@@ -34,7 +34,7 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=ask-settings
   const [factoryResetting, setFactoryResetting] = useState(false);
-  const [drawerPort, setDrawerPort] = useState('USB005');
+  const [drawerPort, setDrawerPort] = useState('POS-80');
   const [savingPort, setSavingPort] = useState(false);
 
   const doFactoryReset = async (includeSettings) => {
@@ -54,7 +54,7 @@ const Profile = () => {
   };
 
   useEffect(() => {
-    getDrawerPort().then(res => setDrawerPort(res.data?.port || 'USB005')).catch(() => {});
+    getDrawerPort().then(res => setDrawerPort(res.data?.port || 'POS-80')).catch(() => {});
     getSettings().then(res => {
       const u = res.data?.user || {};
       const b = res.data?.business || {};
@@ -186,16 +186,16 @@ const Profile = () => {
           <div className="form-section" style={{ marginTop: 24 }}>
             <h3 className="form-section-title"><FiPrinter /> POS Hardware</h3>
             <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
-              Configure the USB port your cash drawer is connected through. Find it in Windows → Devices and Printers → right-click your printer → Printer properties → Ports tab.
+              Enter the exact printer name your cash drawer is connected to. Find it in Windows → Devices and Printers (e.g. POS-80).
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Cash Drawer Port</label>
+                <label>Printer Name</label>
                 <input
                   type="text"
                   value={drawerPort}
                   onChange={e => setDrawerPort(e.target.value)}
-                  placeholder="e.g. USB005"
+                  placeholder="e.g. POS-80"
                   style={{ width: 160 }}
                 />
               </div>

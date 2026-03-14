@@ -62,7 +62,7 @@ router.put('/business', auth, (req, res) => {
 router.get('/drawer-port', (req, res) => {
   try {
     const row = db.prepare("SELECT value FROM sync_config WHERE key = 'drawer_port'").get();
-    res.json({ port: row?.value || 'USB005' });
+    res.json({ port: row?.value || 'POS-80' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -85,16 +85,61 @@ router.put('/drawer-port', auth, (req, res) => {
   }
 });
 
-// POST /api/settings/open-drawer — send ESC/POS drawer kick
+// POST /api/settings/open-drawer — send ESC/POS drawer kick via Windows Print Spooler
 router.post('/open-drawer', (req, res) => {
   try {
-    const portRow = db.prepare("SELECT value FROM sync_config WHERE key = 'drawer_port'").get();
-    const port = portRow?.value || 'USB005';
-    const DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]);
-    const tmpFile = path.join(os.tmpdir(), 'butchery_dk.bin');
-    fs.writeFileSync(tmpFile, DRAWER_KICK);
-    exec(`copy /b "${tmpFile}" ${port}:`, (err) => {
-      if (err) return res.status(500).json({ error: 'Failed to open drawer: ' + err.message });
+    const row = db.prepare("SELECT value FROM sync_config WHERE key = 'drawer_port'").get();
+    const printerName = row?.value || 'POS-80';
+
+    const psScript = `
+$source = @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrint {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint="OpenPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
+    public static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint="ClosePrinter")]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartDocPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+    [DllImport("winspool.Drv", EntryPoint="EndDocPrinter")]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartPagePrinter")]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="EndPagePrinter")]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+    public static bool Send(string printer, byte[] bytes) {
+        IntPtr hPrinter; IntPtr pBuf = IntPtr.Zero;
+        DOCINFOA di = new DOCINFOA(); di.pDocName = "drawer"; di.pDataType = "RAW";
+        if (!OpenPrinter(printer, out hPrinter, IntPtr.Zero)) return false;
+        if (!StartDocPrinter(hPrinter, 1, di)) { ClosePrinter(hPrinter); return false; }
+        StartPagePrinter(hPrinter);
+        pBuf = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(bytes.Length);
+        System.Runtime.InteropServices.Marshal.Copy(bytes, 0, pBuf, bytes.Length);
+        int written;
+        WritePrinter(hPrinter, pBuf, bytes.Length, out written);
+        System.Runtime.InteropServices.Marshal.FreeCoTaskMem(pBuf);
+        EndPagePrinter(hPrinter); EndDocPrinter(hPrinter); ClosePrinter(hPrinter);
+        return true;
+    }
+}
+"@
+Add-Type -TypeDefinition $source -Language CSharp
+[RawPrint]::Send("${printerName}", [byte[]](0x1B, 0x70, 0x00, 0x19, 0xFA))
+`;
+
+    const tmpPs = path.join(os.tmpdir(), 'butchery_drawer.ps1');
+    fs.writeFileSync(tmpPs, psScript, 'utf8');
+    exec(`powershell -ExecutionPolicy Bypass -File "${tmpPs}"`, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: 'Failed to open drawer: ' + (stderr || err.message) });
       res.json({ success: true });
     });
   } catch (error) {
