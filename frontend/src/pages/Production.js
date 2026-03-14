@@ -163,8 +163,7 @@ const Production = () => {
   };
 
   const filteredInputProducts = (search) =>
-    [...rawMaterials, ...returnedFinished]
-      .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8);
+    products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8);
 
   const filteredOutputProducts = (search) =>
     finishedProducts.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8);

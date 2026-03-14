@@ -204,6 +204,7 @@ const POS = () => {
   });
 
   const addToCart = (product, qty = 1) => {
+    if (search) setSearch('');
     setCart(prev => {
       const existing = prev.find(item => item.product_id === product.id);
       if (existing) {
@@ -531,7 +532,7 @@ const POS = () => {
                   key={item.product_id}
                   className="cart-item"
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, item }); }}
-                  onDoubleClick={() => setQtyEdit({ item, value: String(item.quantity) })}
+                  onDoubleClick={() => setQtyEdit({ item, value: '' })}
                 >
                   <div className="cart-item-info">
                     <h4>{item.product_name}</h4>
@@ -882,7 +883,7 @@ const POS = () => {
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#374151', fontWeight: 500 }}
             onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            onClick={() => { setQtyEdit({ item: contextMenu.item, value: String(contextMenu.item.quantity) }); setContextMenu(null); }}
+            onClick={() => { setQtyEdit({ item: contextMenu.item, value: '' }); setContextMenu(null); }}
           >
             ✏️ Change Quantity
           </button>
@@ -915,6 +916,7 @@ const POS = () => {
               onChange={e => setQtyEdit(prev => ({ ...prev, value: e.target.value }))}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
+                  if (!qtyEdit.value || parseFloat(qtyEdit.value) <= 0) return;
                   setItemQty(qtyEdit.item.product_id, qtyEdit.value);
                   setQtyEdit(null);
                 } else if (e.key === 'Escape') {
@@ -929,7 +931,8 @@ const POS = () => {
                 onClick={() => setQtyEdit(null)}
               >Cancel</button>
               <button
-                style={{ flex: 2, padding: '8px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                disabled={!qtyEdit.value || parseFloat(qtyEdit.value) <= 0}
+                style={{ flex: 2, padding: '8px', borderRadius: 8, border: 'none', background: (!qtyEdit.value || parseFloat(qtyEdit.value) <= 0) ? '#93c5fd' : '#2563eb', color: '#fff', cursor: (!qtyEdit.value || parseFloat(qtyEdit.value) <= 0) ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600 }}
                 onClick={() => { setItemQty(qtyEdit.item.product_id, qtyEdit.value); setQtyEdit(null); }}
               >Update</button>
             </div>
