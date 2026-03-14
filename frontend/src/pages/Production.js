@@ -96,10 +96,7 @@ const Production = () => {
   const updateInput = (i, field, val) => setInputs(prev => prev.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
 
   const selectInputProduct = (i, product) => {
-    const isReturned = product.product_type === 'finished';
-    const balance = isReturned
-      ? parseFloat(product.available_for_reprocessing || 0)
-      : parseFloat(product.store_balance || 0);
+    const balance = parseFloat(product.store_balance || 0);
     setInputs(prev => prev.map((row, idx) => idx === i ? {
       ...row,
       product_id: product.id,
@@ -309,10 +306,7 @@ const Production = () => {
                                   {filteredInputProducts(row.product_name).length === 0
                                     ? <div style={{ padding: '10px 14px', color: '#9ca3af', fontSize: 13 }}>No inputs available. Add raw materials or return finished products from sales.</div>
                                     : filteredInputProducts(row.product_name).map(p => {
-                                        const isReturned = p.product_type === 'finished';
-                                        const bal = isReturned
-                                          ? parseFloat(p.available_for_reprocessing || 0)
-                                          : parseFloat(p.store_balance || 0);
+                                        const bal = parseFloat(p.store_balance || 0);
                                         return (
                                           <div key={p.id} onMouseDown={() => selectInputProduct(i, p)}
                                             style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -321,7 +315,6 @@ const Production = () => {
                                           >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                               <span style={{ fontWeight: 500 }}>{p.name}</span>
-                                              {isReturned && <span style={{ fontSize: 10, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>returned</span>}
                                             </div>
                                             <span style={{ color: '#9ca3af', fontSize: 12 }}>{bal.toFixed(2)} {p.unit}</span>
                                           </div>
