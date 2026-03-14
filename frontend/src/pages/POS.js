@@ -531,6 +531,7 @@ const POS = () => {
                   key={item.product_id}
                   className="cart-item"
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, item }); }}
+                  onDoubleClick={() => setQtyEdit({ item, value: String(item.quantity) })}
                 >
                   <div className="cart-item-info">
                     <h4>{item.product_name}</h4>
@@ -555,20 +556,6 @@ const POS = () => {
 
           <div className="cart-footer">
             <div className="cart-totals">
-              <div className="cart-total-line">
-                <span>Subtotal</span>
-                <span>K{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="cart-total-line">
-                <span>Discount</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  -K<input
-                    type="number" min="0" value={discount}
-                    readOnly
-                    style={{ width: 64, border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 13, textAlign: 'right', background: '#f3f4f6', cursor: 'not-allowed', color: '#9ca3af' }}
-                  />
-                </span>
-              </div>
               <div className="cart-total-line total">
                 <span>Total</span>
                 <span>K{total.toFixed(2)}</span>
@@ -599,7 +586,7 @@ const POS = () => {
               <button className="btn-clear" onClick={() => setCart([])}>
                 <FiX /> Clear
               </button>
-              <button className="btn-checkout" onClick={handleCheckout} disabled={cart.length === 0 || (total - parseFloat(amountReceived || 0)) > 0.3}>
+              <button className="btn-checkout" onClick={handleCheckout} disabled={cart.length === 0 || (total - parseFloat(amountReceived || 0)) > 0.4}>
                 <FiShoppingCart /> Checkout
               </button>
             </div>
