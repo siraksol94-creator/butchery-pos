@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getInventory, createOrder, getSettings } from '../services/api';
-import { FiSearch, FiShoppingCart, FiX, FiDollarSign } from 'react-icons/fi';
+import { getInventory, createOrder, getSettings, openCashDrawer } from '../services/api';
+import { FiSearch, FiShoppingCart, FiX, FiDollarSign, FiUnlock } from 'react-icons/fi';
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 const getCategoryClass = () => 'badge-gray';
@@ -21,6 +21,7 @@ const POS = () => {
   const [showChangeBanner, setShowChangeBanner] = useState(false);
   const [barcodeMsg, setBarcodeMsg] = useState(null); // { text, type: 'error'|'success' }
   const [scannerActive, setScannerActive] = useState(true);
+  const [drawerMsg, setDrawerMsg] = useState(null);
   const [showNumpad, setShowNumpad] = useState(false);
   const [numpadValue, setNumpadValue] = useState('');
   const [contextMenu, setContextMenu] = useState(null); // { x, y, item }
@@ -88,6 +89,16 @@ const POS = () => {
       document.removeEventListener('focusout', onFocusOut);
     };
   }, []);
+
+  const handleOpenDrawer = async () => {
+    try {
+      await openCashDrawer();
+      setDrawerMsg({ type: 'success', text: 'Drawer opened' });
+    } catch {
+      setDrawerMsg({ type: 'error', text: 'Failed to open drawer' });
+    }
+    setTimeout(() => setDrawerMsg(null), 2500);
+  };
 
   const focusScanner = () => {
     if (document.activeElement && document.activeElement !== document.body) {
@@ -443,6 +454,22 @@ const POS = () => {
                   display: 'inline-block', flexShrink: 0
                 }} />
                 {scannerActive ? 'Scanner Active' : 'Focus Scanner'}
+              </button>
+              <button
+                onClick={handleOpenDrawer}
+                title="Open Cash Drawer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                  fontWeight: 600, fontSize: 13,
+                  background: drawerMsg?.type === 'success' ? '#dcfce7' : drawerMsg?.type === 'error' ? '#fee2e2' : '#f3f4f6',
+                  border: `2px solid ${drawerMsg?.type === 'success' ? '#16a34a' : drawerMsg?.type === 'error' ? '#dc2626' : '#d1d5db'}`,
+                  color: drawerMsg?.type === 'success' ? '#16a34a' : drawerMsg?.type === 'error' ? '#dc2626' : '#374151',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <FiUnlock size={14} />
+                {drawerMsg ? drawerMsg.text : 'Open Drawer'}
               </button>
               <div className="page-time">🕐 {timeStr}</div>
             </div>

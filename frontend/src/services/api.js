@@ -156,6 +156,9 @@ export const deleteUser = (id) => api.delete(`/users/${id}`);
 export const getSettings = () => api.get('/settings');
 export const updateProfile = (data) => api.put('/settings/profile', data);
 export const updateBusiness = (data) => api.put('/settings/business', data);
+export const getDrawerPort = () => api.get('/settings/drawer-port');
+export const updateDrawerPort = (port) => api.put('/settings/drawer-port', { port });
+export const openCashDrawer = () => api.post('/settings/open-drawer');
 
 // Production
 export const getProductions = () => api.get('/production');

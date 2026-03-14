@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getSettings, updateProfile, updateBusiness } from '../services/api';
-import { FiSave, FiUser, FiMail, FiPhone, FiMapPin, FiCloud, FiWifi, FiWifiOff, FiAlertTriangle } from 'react-icons/fi';
+import { getSettings, updateProfile, updateBusiness, getDrawerPort, updateDrawerPort } from '../services/api';
+import { FiSave, FiUser, FiMail, FiPhone, FiMapPin, FiCloud, FiWifi, FiWifiOff, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
 
 const Profile = () => {
   const { user, logout } = useAuth();
@@ -34,6 +34,8 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=ask-settings
   const [factoryResetting, setFactoryResetting] = useState(false);
+  const [drawerPort, setDrawerPort] = useState('USB005');
+  const [savingPort, setSavingPort] = useState(false);
 
   const doFactoryReset = async (includeSettings) => {
     setFactoryResetting(true);
@@ -52,6 +54,7 @@ const Profile = () => {
   };
 
   useEffect(() => {
+    getDrawerPort().then(res => setDrawerPort(res.data?.port || 'USB005')).catch(() => {});
     getSettings().then(res => {
       const u = res.data?.user || {};
       const b = res.data?.business || {};
@@ -85,6 +88,17 @@ const Profile = () => {
   };
 
   const getInitials = () => `${form.firstName[0]}${form.lastName[0]}`.toUpperCase();
+
+  const handleSaveDrawerPort = async () => {
+    setSavingPort(true);
+    try {
+      await updateDrawerPort(drawerPort);
+      alert('Drawer port saved successfully!');
+    } catch {
+      alert('Failed to save drawer port.');
+    }
+    setSavingPort(false);
+  };
 
   return (
     <div className="page-content">
@@ -167,6 +181,35 @@ const Profile = () => {
               <button type="submit" className="btn btn-primary" disabled={saving}><FiSave /> {saving ? 'Saving...' : 'Save Changes'}</button>
             </div>
           </form>
+
+          {/* POS Hardware Section */}
+          <div className="form-section" style={{ marginTop: 24 }}>
+            <h3 className="form-section-title"><FiPrinter /> POS Hardware</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+              Configure the USB port your cash drawer is connected through. Find it in Windows → Devices and Printers → right-click your printer → Printer properties → Ports tab.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Cash Drawer Port</label>
+                <input
+                  type="text"
+                  value={drawerPort}
+                  onChange={e => setDrawerPort(e.target.value)}
+                  placeholder="e.g. USB005"
+                  style={{ width: 160 }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveDrawerPort}
+                disabled={savingPort}
+                className="btn btn-primary"
+                style={{ marginTop: 18 }}
+              >
+                <FiSave /> {savingPort ? 'Saving...' : 'Save Port'}
+              </button>
+            </div>
+          </div>
 
           {/* Cloud Sync Section */}
           <div className="form-section" style={{ marginTop: 24 }}>
