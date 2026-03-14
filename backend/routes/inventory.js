@@ -133,6 +133,7 @@ router.get('/sales', (req, res) => {
 
         COALESCE(input_agg.input, 0) AS input,
         COALESCE(sales_day_agg.total_sales, 0) AS total_sales,
+        COALESCE(returns_day_agg.total_returns, 0) AS total_returns,
         COALESCE(all_sales_agg.sales_balance, 0) AS sales_balance,
 
         CASE WHEN COALESCE(grn_cost.total_qty, 0) > 0
@@ -175,6 +176,13 @@ router.get('/sales', (req, res) => {
           AND created_at >= @date AND created_at < date(@date, '+1 day') AND product_sync_id IS NOT NULL
         GROUP BY product_sync_id
       ) sales_day_agg ON sales_day_agg.product_sync_id = p.sync_id
+
+      LEFT JOIN (
+        SELECT product_sync_id, ABS(SUM(quantity)) AS total_returns
+        FROM stock_movements WHERE location = 'sales' AND movement_type = 'sales_return'
+          AND created_at >= @date AND created_at < date(@date, '+1 day') AND deleted_at IS NULL AND product_sync_id IS NOT NULL
+        GROUP BY product_sync_id
+      ) returns_day_agg ON returns_day_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
         SELECT product_sync_id, SUM(quantity) AS sales_balance
@@ -239,6 +247,8 @@ router.post('/sales/actual', (req, res) => {
       for (const entry of entries) {
         const entryProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(entry.product_id);
         const entryProductSyncId = entryProd?.sync_id || null;
+
+        // Save actual balance record
         db.prepare(`
           INSERT INTO daily_actual_balance (product_id, product_sync_id, date, actual_balance, reason, created_by, sync_id, tenant_id, branch_id, device_id, synced)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
@@ -250,6 +260,23 @@ router.post('/sales/actual', (req, res) => {
                         synced = 0
         `).run(entry.product_id, entryProductSyncId, date, entry.actual_balance, entry.reason || null, created_by,
                randomUUID(), tenantId, branchId, deviceId);
+
+        // Create reconciliation movement so POS "In Stock" reflects the actual balance
+        const currentSales = db.prepare(
+          `SELECT COALESCE(SUM(quantity), 0) AS bal FROM stock_movements WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL`
+        ).get(entryProductSyncId);
+        const diff = parseFloat(entry.actual_balance) - parseFloat(currentSales.bal);
+        if (Math.abs(diff) > 0.0001) {
+          // Remove any previous reconciliation for this product+date to avoid stacking
+          db.prepare(
+            `UPDATE stock_movements SET deleted_at = datetime('now'), synced = 0 WHERE product_sync_id = ? AND location = 'sales' AND movement_type = 'reconciliation' AND date(created_at) = ? AND deleted_at IS NULL`
+          ).run(entryProductSyncId, date);
+          db.prepare(`
+            INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+            VALUES (?, ?, 'sales', 'reconciliation', ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+          `).run(entry.product_id, entryProductSyncId, diff, `Reconciliation: actual balance set to ${entry.actual_balance}`, created_by,
+                 randomUUID(), tenantId, branchId, deviceId);
+        }
       }
     })();
     res.json({ message: 'Actual balances saved successfully' });

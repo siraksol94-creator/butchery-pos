@@ -82,7 +82,8 @@ const SalesInventory = () => {
     const input = parseFloat(product.input || 0);
     const totalStock = openingBalance + input;
     const totalSales = parseFloat(product.total_sales || 0);
-    const salesBalance = totalStock - totalSales;
+    const salesReturns = parseFloat(product.total_returns || 0);
+    const salesBalance = totalStock - totalSales - salesReturns;
     const costPrice = parseFloat(product.avg_cost_price || product.cost_price || 0);
     const sellingPrice = parseFloat(product.avg_selling_price || product.selling_price || 0);
     const actualVal = actualBalances[product.id] !== undefined && actualBalances[product.id] !== ''
