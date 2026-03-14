@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getProductions, getProductionStats, createProduction, deleteProduction, getProduction } from '../services/api';
 import { getStoreInventory } from '../services/api';
-import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
+
+const todayStr = new Date().toISOString().split('T')[0];
 
 const emptyInput  = { product_id: '', product_name: '', quantity: '', unit_cost: '', unit: 'kg', store_balance: 0 };
 const emptyOutput = { product_id: '', product_name: '', quantity: '', unit: 'kg' };
@@ -17,6 +19,8 @@ const Production = () => {
   const [saving, setSaving]         = useState(false);
   const [deleting, setDeleting]     = useState(false);
   const [error, setError]           = useState('');
+  const [filterFrom, setFilterFrom] = useState(todayStr);
+  const [filterTo,   setFilterTo]   = useState(todayStr);
 
   // Form state
   const [date, setDate]     = useState(new Date().toISOString().split('T')[0]);
@@ -165,6 +169,57 @@ const Production = () => {
   const filteredOutputProducts = (search) =>
     finishedProducts.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8);
 
+  const filteredEntries = entries.filter(e => {
+    const d = (e.date || '').split('T')[0];
+    if (filterFrom && d < filterFrom) return false;
+    if (filterTo   && d > filterTo)   return false;
+    return true;
+  });
+
+  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+
+  const handlePrint = () => {
+    const dateLabel = filterFrom === filterTo && filterFrom
+      ? fmtDate(filterFrom)
+      : filterFrom || filterTo
+        ? `${filterFrom ? fmtDate(filterFrom) : 'Start'} – ${filterTo ? fmtDate(filterTo) : 'End'}`
+        : 'All Dates';
+    const rows = filteredEntries.map(e => `
+      <tr>
+        <td>${e.production_number}</td>
+        <td>${e.date}</td>
+        <td style="text-align:center">${e.input_count}</td>
+        <td style="text-align:center">${e.output_count}</td>
+        <td style="text-align:right">K ${parseFloat(e.total_input_cost || 0).toFixed(2)}</td>
+        <td style="text-align:right">K ${parseFloat(e.cost_per_kg || 0).toFixed(2)}</td>
+        <td>${e.notes || '—'}</td>
+      </tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
+      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
+      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
+      .sub{font-size:11px;color:#6b7280;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-top:4px}
+      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
+      td{border:1px solid #e5e7eb;padding:7px 10px}
+      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
+    </style></head><body>
+      <div class="hdr">
+        <div class="biz">Production Entries</div>
+        <div class="sub">${dateLabel}</div>
+      </div>
+      <table>
+        <thead><tr><th>Production #</th><th>Date</th><th style="text-align:center">Inputs</th><th style="text-align:center">Outputs</th><th style="text-align:right">Total Cost</th><th style="text-align:right">Cost/kg</th><th>Notes</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#9ca3af">No entries</td></tr>'}</tbody>
+      </table>
+      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   return (
     <div className="page-content">
       <div className="page-header">
@@ -172,9 +227,14 @@ const Production = () => {
           <h1>Production</h1>
           <p>Transform raw materials into finished products</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FiPlus /> New Production Entry
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+            <FiPrinter size={15} /> Print
+          </button>
+          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FiPlus /> New Production Entry
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -187,6 +247,24 @@ const Production = () => {
           <div className="stat-icon" style={{ background: '#dcfce7', color: '#16a34a' }}><FiTool /></div>
           <div><div className="stat-label">This Month</div><div className="stat-value">{stats.thisMonth}</div></div>
         </div>
+      </div>
+
+      {/* Date Filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 16px', background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Filter by Date:</span>
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>From</span>
+        <input type="date" value={filterFrom} max={filterTo || todayStr} onChange={e => setFilterFrom(e.target.value)}
+          style={{ padding: '6px 10px', borderRadius: 7, border: '1px solid #d1d5db', fontSize: 13, background: '#fff', cursor: 'pointer' }} />
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>To</span>
+        <input type="date" value={filterTo} min={filterFrom || undefined} max={todayStr} onChange={e => setFilterTo(e.target.value)}
+          style={{ padding: '6px 10px', borderRadius: 7, border: '1px solid #d1d5db', fontSize: 13, background: '#fff', cursor: 'pointer' }} />
+        {(filterFrom || filterTo) && (
+          <button onClick={() => { setFilterFrom(''); setFilterTo(''); }}
+            style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #e5e7eb', fontSize: 12, background: '#fff', color: '#6b7280', cursor: 'pointer' }}>
+            Clear
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af' }}>{filteredEntries.length} entr{filteredEntries.length !== 1 ? 'ies' : 'y'}</span>
       </div>
 
       {/* Table */}
@@ -207,9 +285,9 @@ const Production = () => {
           <tbody>
             {loading ? (
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#9ca3af' }}>Loading...</td></tr>
-            ) : entries.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#9ca3af' }}>No production entries yet.</td></tr>
-            ) : entries.map(e => (
+            ) : filteredEntries.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#9ca3af' }}>{entries.length === 0 ? 'No production entries yet.' : 'No entries for selected date range.'}</td></tr>
+            ) : filteredEntries.map(e => (
               <tr key={e.id}>
                 <td style={{ fontWeight: 600, color: '#2563eb' }}>{e.production_number}</td>
                 <td>{e.date}</td>

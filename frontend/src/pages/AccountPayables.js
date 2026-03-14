@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown } from '../services/api';
-import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight } from 'react-icons/fi';
+import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter } from 'react-icons/fi';
 
 const getStatusBadge = (status) => {
   const map = { 'Paid': 'badge-green', 'Partial': 'badge-orange', 'Unpaid': 'badge-red', 'No Purchases': 'badge-gray' };
@@ -72,6 +72,55 @@ const AccountPayables = () => {
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
+  const handlePrint = () => {
+    const fmt = (v) => parseFloat(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const rows = payables.map(p => `
+      <tr>
+        <td>${p.supplier_name}</td>
+        <td>${p.phone || '—'}</td>
+        <td style="text-align:center">${p.grn_count}</td>
+        <td style="text-align:right">K${fmt(p.total_purchases)}</td>
+        <td style="text-align:right;color:#16a34a">K${fmt(p.total_paid)}</td>
+        <td style="text-align:right;color:${parseFloat(p.balance) > 0 ? '#dc2626' : '#16a34a'};font-weight:600">K${fmt(p.balance)}</td>
+        <td>${formatDate(p.last_grn_date)}</td>
+        <td>${p.status}</td>
+      </tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
+      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
+      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
+      .sub{font-size:11px;color:#6b7280;margin-top:2px}
+      .stats{display:flex;gap:24px;margin-bottom:14px;font-size:11px}
+      .stat{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 14px}
+      .stat-lbl{color:#6b7280;font-size:10px;margin-bottom:2px}
+      .stat-val{font-weight:bold;font-size:13px}
+      table{width:100%;border-collapse:collapse;margin-top:4px}
+      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
+      td{border:1px solid #e5e7eb;padding:7px 10px}
+      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
+    </style></head><body>
+      <div class="hdr">
+        <div class="biz">Account Payables</div>
+        <div class="sub">Supplier Ledger — Printed ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})}</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-lbl">Total Purchases</div><div class="stat-val">K${fmt(stats.totalPurchases)}</div></div>
+        <div class="stat"><div class="stat-lbl">Total Paid</div><div class="stat-val" style="color:#16a34a">K${fmt(stats.totalPaid)}</div></div>
+        <div class="stat"><div class="stat-lbl">Outstanding</div><div class="stat-val" style="color:#dc2626">K${fmt(stats.outstanding)}</div></div>
+        <div class="stat"><div class="stat-lbl">Suppliers</div><div class="stat-val">${stats.suppliers}</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Supplier</th><th>Phone</th><th style="text-align:center">GRNs</th><th style="text-align:right">Purchases</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th><th>Last GRN</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   return (
     <div className="page-content">
       <div className="page-header">
@@ -79,6 +128,9 @@ const AccountPayables = () => {
           <h1>Account Payables</h1>
           <p>Supplier ledger — track what you owe suppliers</p>
         </div>
+        <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#7c3aed', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+          <FiPrinter size={15} /> Print
+        </button>
       </div>
 
       <div className="stat-cards">

@@ -87,6 +87,7 @@ export const deleteGRN = (id) => api.delete(`/grn/${id}`);
 export const getInventory = () => api.get('/inventory');
 export const getStoreInventory = () => api.get('/inventory/store');
 export const getSalesInventory = (params) => api.get('/inventory/sales', { params });
+export const getSalesMonthlySummary = (month) => api.get('/inventory/sales/monthly-summary', { params: { month } });
 export const getSIVBreakdown = (date, product_id) => api.get('/inventory/sales/siv-breakdown', { params: { date, product_id } });
 export const saveSalesActualBalance = (data) => api.post('/inventory/sales/actual', data);
 export const getInventoryStats = () => api.get('/inventory/stats');

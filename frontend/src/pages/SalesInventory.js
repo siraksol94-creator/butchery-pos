@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSalesInventory, getSIVBreakdown, saveSalesActualBalance } from '../services/api';
+import { getSalesInventory, getSalesMonthlySummary, getSIVBreakdown, saveSalesActualBalance } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   FiSearch, FiPackage, FiAlertTriangle, FiCalendar, FiSave,
@@ -21,6 +21,7 @@ const SalesInventory = () => {
   const [otherModal, setOtherModal] = useState(null); // { productId, text }
   const [expandedRows, setExpandedRows] = useState({}); // productId → true/false
   const [sivBreakdowns, setSivBreakdowns] = useState({}); // productId → rows[]
+  const [monthlySummary, setMonthlySummary] = useState({ total_revenue: 0, total_profit: 0, total_difference: 0 });
 
   const toggleExpand = async (productId) => {
     const isOpen = expandedRows[productId];
@@ -41,7 +42,12 @@ const SalesInventory = () => {
   const loadData = async (date) => {
     setLoading(true);
     try {
-      const res = await getSalesInventory({ date });
+      const month = date.slice(0, 7);
+      const [res, monthRes] = await Promise.all([
+        getSalesInventory({ date }),
+        getSalesMonthlySummary(month),
+      ]);
+      setMonthlySummary(monthRes.data || { total_revenue: 0, total_profit: 0, total_difference: 0 });
       const data = res.data || [];
       setProducts(data);
       const savedAB = {}, savedReasons = {}, newSavedRows = {};
@@ -103,7 +109,7 @@ const SalesInventory = () => {
 
   const isLocked = (id) => !!savedRows[id] && !editingRows[id];
 
-  const PRESET_REASONS = ['Weight Loss', 'Shortage'];
+  const PRESET_REASONS = ['Weight Loss', 'Shortage', 'Overage'];
 
   const getSelectValue = (id) => {
     const r = reasons[id];
@@ -209,6 +215,27 @@ const SalesInventory = () => {
       bg: summaryTotals.totalDiff < 0 ? '#fef2f2' : '#f0fdf4',
       border: summaryTotals.totalDiff < 0 ? '#fecaca' : '#bbf7d0'
     },
+    {
+      label: `${filterDate.slice(0, 7)} Revenue`, value: fmt(monthlySummary.total_revenue), prefix: '$',
+      icon: <FiDollarSign size={18} />, color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd',
+      monthly: true
+    },
+    {
+      label: `${filterDate.slice(0, 7)} Profit`, value: fmt(monthlySummary.total_profit), prefix: '$',
+      icon: <FiTrendingUp size={18} />,
+      color: monthlySummary.total_profit >= 0 ? '#16a34a' : '#dc2626',
+      bg: monthlySummary.total_profit >= 0 ? '#f0fdf4' : '#fef2f2',
+      border: monthlySummary.total_profit >= 0 ? '#bbf7d0' : '#fecaca',
+      monthly: true
+    },
+    {
+      label: `${filterDate.slice(0, 7)} Difference`, value: fmt(monthlySummary.total_difference), prefix: '$',
+      icon: <FiAlertTriangle size={18} />,
+      color: monthlySummary.total_difference < 0 ? '#dc2626' : '#16a34a',
+      bg: monthlySummary.total_difference < 0 ? '#fef2f2' : '#f0fdf4',
+      border: monthlySummary.total_difference < 0 ? '#fecaca' : '#bbf7d0',
+      monthly: true
+    },
   ];
 
   const printDirect = (html) => {
@@ -304,7 +331,8 @@ const SalesInventory = () => {
           <div key={card.label} style={{
             flex: '1 1 140px', display: 'flex', alignItems: 'center', gap: 12,
             padding: '14px 18px', borderRadius: 12,
-            background: card.bg, border: `1.5px solid ${card.border}`,
+            background: card.bg,
+            border: card.monthly ? `1.5px dashed ${card.border}` : `1.5px solid ${card.border}`,
             boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minWidth: 140,
           }}>
             <div style={{
@@ -316,7 +344,7 @@ const SalesInventory = () => {
             </div>
             <div>
               <div style={{
-                fontSize: 10, color: '#6b7280', fontWeight: 600,
+                fontSize: 10, color: card.monthly ? card.color : '#6b7280', fontWeight: 600,
                 letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 3
               }}>
                 {card.label}
@@ -443,9 +471,14 @@ const SalesInventory = () => {
                             onChange={e => {
                               const val = e.target.value;
                               setActualBalances(prev => ({ ...prev, [product.id]: val }));
-                              if (val !== '' && !reasons[product.id]) {
+                              if (val !== '') {
                                 const diff = parseFloat(val) - r.salesBalance;
-                                setReasons(prev => ({ ...prev, [product.id]: diff < 0 ? 'Weight Loss' : 'Shortage' }));
+                                const autoReason = diff < 0 ? 'Weight Loss' : 'Overage';
+                                const currentReason = reasons[product.id];
+                                // Auto-select only if no reason set, or if current reason is one of the auto ones
+                                if (!currentReason || currentReason === 'Weight Loss' || currentReason === 'Overage') {
+                                  setReasons(prev => ({ ...prev, [product.id]: autoReason }));
+                                }
                               }
                             }}
                             style={{
@@ -508,6 +541,7 @@ const SalesInventory = () => {
                               >
                                 <option value="Weight Loss">Weight Loss</option>
                                 <option value="Shortage">Shortage</option>
+                                <option value="Overage">Overage</option>
                                 <option value="Other">Other</option>
                               </select>
                               {/* Show custom text indicator */}

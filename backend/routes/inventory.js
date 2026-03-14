@@ -220,6 +220,48 @@ router.get('/sales', (req, res) => {
   }
 });
 
+// GET /api/inventory/sales/monthly-summary?month=YYYY-MM
+router.get('/sales/monthly-summary', (req, res) => {
+  try {
+    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const rows = db.prepare(`
+      SELECT
+        COALESCE(SUM(sm.quantity * p.selling_price), 0) AS total_revenue,
+        COALESCE(SUM(sm.quantity * p.cost_price), 0)    AS total_cogs,
+        COALESCE(SUM(recon.quantity * p.selling_price), 0) AS total_diff_value
+      FROM products p
+      LEFT JOIN (
+        SELECT product_sync_id, SUM(quantity) AS quantity
+        FROM stock_movements
+        WHERE location = 'sales' AND movement_type = 'sale'
+          AND strftime('%Y-%m', created_at) = ?
+          AND deleted_at IS NULL
+        GROUP BY product_sync_id
+      ) sm ON sm.product_sync_id = p.sync_id
+      LEFT JOIN (
+        SELECT product_sync_id, SUM(quantity) AS quantity
+        FROM stock_movements
+        WHERE location = 'sales' AND movement_type = 'reconciliation'
+          AND strftime('%Y-%m', created_at) = ?
+          AND deleted_at IS NULL
+        GROUP BY product_sync_id
+      ) recon ON recon.product_sync_id = p.sync_id
+      WHERE p.deleted_at IS NULL
+        AND (sm.quantity IS NOT NULL OR recon.quantity IS NOT NULL)
+    `).get(month, month);
+    const totalRevenue = parseFloat(rows.total_revenue || 0);
+    const totalCogs = parseFloat(rows.total_cogs || 0);
+    const totalDiffValue = parseFloat(rows.total_diff_value || 0);
+    res.json({
+      total_revenue: totalRevenue,
+      total_profit: totalRevenue - totalCogs + totalDiffValue,
+      total_difference: totalDiffValue,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/inventory/sales/siv-breakdown?date=&product_id=
 router.get('/sales/siv-breakdown', (req, res) => {
   try {

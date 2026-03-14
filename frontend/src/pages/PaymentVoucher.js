@@ -22,9 +22,9 @@ const PaymentVoucher = () => {
   const [viewVoucher, setViewVoucher] = useState(null);
   const [showPVPrint, setShowPVPrint] = useState(false);
 
-  // Date filter — default to empty (show all)
-  const [filterFrom, setFilterFrom] = useState('');
-  const [filterTo,   setFilterTo]   = useState('');
+  // Date filter — default to today
+  const [filterFrom, setFilterFrom] = useState(todayStr);
+  const [filterTo,   setFilterTo]   = useState(todayStr);
 
   const [form, setForm] = useState({
     paid_to: '', description: '', category: 'Other',
@@ -112,6 +112,50 @@ const PaymentVoucher = () => {
 
   const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
+  const handlePrint = () => {
+    const dateLabel = filterFrom === filterTo && filterFrom
+      ? formatDate(filterFrom)
+      : filterFrom || filterTo
+        ? `${filterFrom ? formatDate(filterFrom) : 'Start'} – ${filterTo ? formatDate(filterTo) : 'End'}`
+        : 'All Dates';
+    const rows = filteredVouchers.map(v => `
+      <tr>
+        <td>${v.voucher_number}</td>
+        <td>${formatDate(v.date)}</td>
+        <td>${v.paid_from || 'Main cashier'}</td>
+        <td>${v.paid_to}</td>
+        <td>${v.description || '—'}</td>
+        <td>${v.category}</td>
+        <td style="text-align:right;font-weight:600">$${fmt2(v.amount)}</td>
+      </tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
+      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
+      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
+      .sub{font-size:11px;color:#6b7280;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-top:4px}
+      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
+      td{border:1px solid #e5e7eb;padding:7px 10px}
+      .tot{font-weight:bold;background:#fef2f2}
+      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
+    </style></head><body>
+      <div class="hdr">
+        <div class="biz">${businessInfo.business?.business_name || 'Business'}</div>
+        <div class="sub">Payment Vouchers — ${dateLabel}</div>
+      </div>
+      <table>
+        <thead><tr><th>Voucher No.</th><th>Date</th><th>Paid From</th><th>Paid To</th><th>Description</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="tot"><td colspan="6" style="text-align:right">Total (${filteredVouchers.length} vouchers)</td><td style="text-align:right">$${fmt2(filteredTotal)}</td></tr></tfoot>
+      </table>
+      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   return (
     <div className="page-content">
 
@@ -121,7 +165,12 @@ const PaymentVoucher = () => {
           <h1>Payment Voucher (PV)</h1>
           <p>Track payments and expenses</p>
         </div>
-        <button className="btn btn-primary" onClick={openForm}><FiPlus /> New Voucher</button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+            <FiPrinter size={15} /> Print
+          </button>
+          <button className="btn btn-primary" onClick={openForm}><FiPlus /> New Voucher</button>
+        </div>
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
