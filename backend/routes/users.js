@@ -1,29 +1,30 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, readOnlyGuard } = require('../middleware/auth');
 const bcrypt = require('bcrypt');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 const parsePerms = (u) => ({ ...u, permissions: JSON.parse(u.permissions || '[]') });
 
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(
-      'SELECT id, first_name, last_name, email, role, permissions, status, phone, last_login, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC'
-    ).all();
+      'SELECT id, first_name, last_name, email, role, permissions, status, phone, last_login, created_at FROM users WHERE deleted_at IS NULL AND tenant_id = ? ORDER BY created_at DESC'
+    ).all(req.user.tenantId);
     res.json(rows.map(parsePerms));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/stats', auth, (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL').get();
-    const active = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND status = 'Active'").get();
-    const inactive = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND status = 'Inactive'").get();
-    const admins = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND role = 'Administrator'").get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const active = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND tenant_id = ? AND status = 'Active'").get(tenantId);
+    const inactive = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND tenant_id = ? AND status = 'Inactive'").get(tenantId);
+    const admins = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE deleted_at IS NULL AND tenant_id = ? AND role = 'Administrator'").get(tenantId);
     res.json({
       totalUsers: total.cnt,
       active: active.cnt,

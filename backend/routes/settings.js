@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 const { exec } = require('child_process');
@@ -8,12 +8,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const user = db.prepare(
-      'SELECT id, first_name, last_name, email, phone, address, role FROM users WHERE id = ?'
-    ).get(req.user.id);
-    const business = db.prepare('SELECT * FROM business_settings LIMIT 1').get() || {};
+      'SELECT id, first_name, last_name, email, phone, address, role FROM users WHERE id = ? AND tenant_id = ?'
+    ).get(req.user.id, req.user.tenantId);
+    const business = db.prepare('SELECT * FROM business_settings WHERE tenant_id = ? LIMIT 1').get(req.user.tenantId) || {};
     res.json({ user, business });
   } catch (error) {
     res.status(500).json({ error: error.message });

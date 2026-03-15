@@ -1,14 +1,14 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const { type, search } = req.query;
-    let query = 'SELECT * FROM customers WHERE deleted_at IS NULL';
-    const params = [];
+    let query = 'SELECT * FROM customers WHERE deleted_at IS NULL AND tenant_id = ?';
+    const params = [req.user.tenantId];
     if (type && type !== 'All Types') {
       params.push(type);
       query += ` AND type = ?`;
@@ -25,12 +25,13 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL').get();
-    const retail = db.prepare("SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL AND type = 'Retail'").get();
-    const wholesale = db.prepare("SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL AND type = 'Wholesale'").get();
-    const revenue = db.prepare('SELECT COALESCE(SUM(total_purchases),0) AS total FROM customers WHERE deleted_at IS NULL').get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const retail = db.prepare("SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL AND tenant_id = ? AND type = 'Retail'").get(tenantId);
+    const wholesale = db.prepare("SELECT COUNT(*) AS cnt FROM customers WHERE deleted_at IS NULL AND tenant_id = ? AND type = 'Wholesale'").get(tenantId);
+    const revenue = db.prepare('SELECT COALESCE(SUM(total_purchases),0) AS total FROM customers WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
     res.json({
       totalCustomers: total.cnt,
       retail: retail.cnt,

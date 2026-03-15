@@ -1,10 +1,12 @@
 const router = require('express').Router();
 const db = require('../config/database');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
-// Shared balance query (no params needed)
-const balanceSQL = `
+// Shared balance query — accepts tenantId for filtering
+const balanceSQL = (tenantId) => ({
+  text: `
   SELECT
     p.id, p.code, p.name, p.unit, p.cost_price, p.selling_price, p.min_stock, p.status, p.image_url,
     p.product_type,
@@ -47,14 +49,17 @@ const balanceSQL = `
     SELECT product_sync_id, ABS(SUM(quantity)) AS total_out
     FROM stock_movements WHERE location = 'store' AND movement_type = 'siv' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
   ) siv_agg ON siv_agg.product_sync_id = p.sync_id
-  WHERE p.deleted_at IS NULL
+  WHERE p.deleted_at IS NULL AND p.tenant_id = ?
   ORDER BY p.name
-`;
+`,
+  params: [tenantId],
+});
 
 // GET /api/inventory
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const rows = db.prepare(balanceSQL).all();
+    const q = balanceSQL(req.user.tenantId);
+    const rows = db.prepare(q.text).all(...q.params);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -62,7 +67,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/inventory/store
-router.get('/store', (req, res) => {
+router.get('/store', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT
@@ -107,9 +112,9 @@ router.get('/store', (req, res) => {
           AS available_for_reprocessing
         FROM stock_movements WHERE location = 'store' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
       ) reprocess_agg ON reprocess_agg.product_sync_id = p.sync_id
-      WHERE p.deleted_at IS NULL
+      WHERE p.deleted_at IS NULL AND p.tenant_id = ?
       ORDER BY p.name
-    `).all();
+    `).all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -117,7 +122,7 @@ router.get('/store', (req, res) => {
 });
 
 // GET /api/inventory/sales
-router.get('/sales', (req, res) => {
+router.get('/sales', auth, readOnlyGuard, (req, res) => {
   try {
     const { date } = req.query;
     const selectedDate = date || new Date().toISOString().split('T')[0];
@@ -204,7 +209,7 @@ router.get('/sales', (req, res) => {
       LEFT JOIN daily_actual_balance today_actual
         ON today_actual.product_sync_id = p.sync_id AND today_actual.date = @date
 
-      WHERE p.deleted_at IS NULL AND (
+      WHERE p.deleted_at IS NULL AND p.tenant_id = @tenantId AND (
         COALESCE(all_sales_agg.sales_balance, 0) != 0
         OR COALESCE(input_agg.input, 0) != 0
         OR COALESCE(sales_day_agg.total_sales, 0) != 0
@@ -213,7 +218,7 @@ router.get('/sales', (req, res) => {
       )
 
       ORDER BY p.name
-    `).all({ date: selectedDate });
+    `).all({ date: selectedDate, tenantId: req.user.tenantId });
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -221,7 +226,7 @@ router.get('/sales', (req, res) => {
 });
 
 // GET /api/inventory/sales/monthly-summary?month=YYYY-MM
-router.get('/sales/monthly-summary', (req, res) => {
+router.get('/sales/monthly-summary', auth, readOnlyGuard, (req, res) => {
   try {
     const month = req.query.month || new Date().toISOString().slice(0, 7);
     const rows = db.prepare(`
@@ -246,9 +251,9 @@ router.get('/sales/monthly-summary', (req, res) => {
           AND deleted_at IS NULL
         GROUP BY product_sync_id
       ) recon ON recon.product_sync_id = p.sync_id
-      WHERE p.deleted_at IS NULL
+      WHERE p.deleted_at IS NULL AND p.tenant_id = ?
         AND (sm.quantity IS NOT NULL OR recon.quantity IS NOT NULL)
-    `).get(month, month);
+    `).get(month, month, req.user.tenantId);
     const totalRevenue = parseFloat(rows.total_revenue || 0);
     const totalCogs = parseFloat(rows.total_cogs || 0);
     const totalDiffValue = parseFloat(rows.total_diff_value || 0);
@@ -263,7 +268,7 @@ router.get('/sales/monthly-summary', (req, res) => {
 });
 
 // GET /api/inventory/sales/siv-breakdown?date=&product_id=
-router.get('/sales/siv-breakdown', (req, res) => {
+router.get('/sales/siv-breakdown', auth, readOnlyGuard, (req, res) => {
   try {
     const { date, product_id } = req.query;
     const rows = db.prepare(`
@@ -271,9 +276,9 @@ router.get('/sales/siv-breakdown', (req, res) => {
       FROM stock_movements sm
       JOIN siv s ON s.sync_id = sm.reference_sync_id
       WHERE sm.location = 'sales' AND sm.movement_type = 'siv'
-        AND sm.product_sync_id = (SELECT sync_id FROM products WHERE id = ?) AND s.date = ? AND sm.deleted_at IS NULL
+        AND sm.product_sync_id = (SELECT sync_id FROM products WHERE id = ? AND tenant_id = ?) AND s.date = ? AND sm.deleted_at IS NULL
       ORDER BY sm.created_at ASC
-    `).all(product_id, date);
+    `).all(product_id, req.user.tenantId, date);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -281,7 +286,7 @@ router.get('/sales/siv-breakdown', (req, res) => {
 });
 
 // POST /api/inventory/sales/actual — save actual balances for a date
-router.post('/sales/actual', (req, res) => {
+router.post('/sales/actual', auth, readOnlyGuard, (req, res) => {
   try {
     const { date, entries, created_by } = req.body;
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
@@ -328,9 +333,10 @@ router.post('/sales/actual', (req, res) => {
 });
 
 // GET /api/inventory/stats
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const products = db.prepare(balanceSQL).all();
+    const q = balanceSQL(req.user.tenantId);
+    const products = db.prepare(q.text).all(...q.params);
     const totalProducts = products.length;
     const storeValue = products.reduce((sum, p) => sum + parseFloat(p.store_balance) * parseFloat(p.selling_price || 0), 0);
     const salesValue = products.reduce((sum, p) => sum + parseFloat(p.sales_balance) * parseFloat(p.selling_price || 0), 0);
@@ -343,14 +349,14 @@ router.get('/stats', (req, res) => {
 });
 
 // GET /api/inventory/bin-card
-router.get('/bin-card', (req, res) => {
+router.get('/bin-card', auth, readOnlyGuard, (req, res) => {
   try {
     const { product_id, from, to } = req.query;
     if (!product_id) return res.status(400).json({ error: 'product_id is required.' });
     const pid = parseInt(product_id);
 
     // Opening balance: sum of ALL store movements BEFORE the `from` date
-    const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(pid);
+    const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ? AND tenant_id = ?').get(pid, req.user.tenantId);
     const pidSync = pidSyncRow?.sync_id;
 
     let obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements WHERE product_sync_id = ? AND location = 'store'`;

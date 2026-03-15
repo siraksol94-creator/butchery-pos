@@ -1,14 +1,14 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const { date, paid_from } = req.query;
-    let q = 'SELECT * FROM payment_vouchers WHERE deleted_at IS NULL';
-    const params = [];
+    let q = 'SELECT * FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ?';
+    const params = [req.user.tenantId];
     if (date)      { params.push(date);      q += ' AND date = ?'; }
     if (paid_from) { params.push(paid_from); q += ' AND paid_from = ?'; }
     q += ' ORDER BY date DESC';
@@ -19,12 +19,13 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const today = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND date = DATE('now')").get();
-    const month = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
-    const count = db.prepare('SELECT COUNT(*) AS cnt FROM payment_vouchers WHERE deleted_at IS NULL').get();
-    const avg = db.prepare('SELECT COALESCE(AVG(amount),0) AS avg FROM payment_vouchers WHERE deleted_at IS NULL').get();
+    const tenantId = req.user.tenantId;
+    const today = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ? AND date = DATE('now')").get(tenantId);
+    const month = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
+    const count = db.prepare('SELECT COUNT(*) AS cnt FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const avg = db.prepare('SELECT COALESCE(AVG(amount),0) AS avg FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
     res.json({
       todayPayments: parseFloat(today.total),
       thisMonth: parseFloat(month.total),

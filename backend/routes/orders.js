@@ -1,13 +1,13 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // Get all orders
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
+    const rows = db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL AND tenant_id = ? ORDER BY created_at DESC').all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -57,7 +57,7 @@ router.post('/', auth, (req, res) => {
 
 // GET /api/orders/product-summary?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Returns total qty sold and revenue per product for active (non-reversed) orders
-router.get('/product-summary', (req, res) => {
+router.get('/product-summary', auth, readOnlyGuard, (req, res) => {
   try {
     const { from, to } = req.query;
     let sql = `
@@ -72,8 +72,9 @@ router.get('/product-summary', (req, res) => {
         AND (o.status IS NULL OR o.status != 'Reversed')
         AND oi.deleted_at IS NULL
         AND (oi.reversed IS NULL OR oi.reversed = 0)
+        AND o.tenant_id = ?
     `;
-    const params = [];
+    const params = [req.user.tenantId];
     if (from) { sql += ' AND DATE(o.created_at) >= ?'; params.push(from); }
     if (to)   { sql += ' AND DATE(o.created_at) <= ?'; params.push(to); }
     sql += ' GROUP BY oi.product_name ORDER BY total_revenue DESC';
@@ -85,9 +86,9 @@ router.get('/product-summary', (req, res) => {
 });
 
 // Get order details
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL AND tenant_id = ?').get(req.params.id, req.user.tenantId);
     const items = db.prepare('SELECT * FROM order_items WHERE order_sync_id = ? AND deleted_at IS NULL').all(order?.sync_id);
     res.json({ ...order, items });
   } catch (error) {

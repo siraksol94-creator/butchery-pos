@@ -1,19 +1,19 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // Get all cash reports
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(
       `SELECT cr.*, u.first_name || ' ' || u.last_name AS created_by_name
        FROM cash_reports cr
        LEFT JOIN users u ON cr.created_by = u.id
-       WHERE cr.deleted_at IS NULL
+       WHERE cr.deleted_at IS NULL AND cr.tenant_id = ?
        ORDER BY cr.date DESC`
-    ).all();
+    ).all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -21,32 +21,33 @@ router.get('/', (req, res) => {
 });
 
 // Get report for a specific date (auto-populate from sales data)
-router.get('/daily', (req, res) => {
+router.get('/daily', auth, readOnlyGuard, (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
+    const tenantId = req.user.tenantId;
 
     const cashSales = db.prepare(
       `SELECT COALESCE(SUM(total_amount), 0) AS total
-       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'Reversed') AND payment_method = 'Cash'`
-    ).get(date);
+       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND tenant_id = ? AND (status IS NULL OR status != 'Reversed') AND payment_method = 'Cash'`
+    ).get(date, tenantId);
 
     const mobileSales = db.prepare(
       `SELECT COALESCE(SUM(total_amount), 0) AS total
-       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'Reversed') AND payment_method IN ('Transfer', 'Mobile Money')`
-    ).get(date);
+       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND tenant_id = ? AND (status IS NULL OR status != 'Reversed') AND payment_method IN ('Transfer', 'Mobile Money')`
+    ).get(date, tenantId);
 
     const pendingSales = db.prepare(
       `SELECT COALESCE(SUM(total_amount), 0) AS total
-       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'Reversed') AND payment_method NOT IN ('Cash', 'Transfer', 'Mobile Money')`
-    ).get(date);
+       FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND tenant_id = ? AND (status IS NULL OR status != 'Reversed') AND payment_method NOT IN ('Cash', 'Transfer', 'Mobile Money')`
+    ).get(date, tenantId);
 
     const expenses = db.prepare(
-      `SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND date = ? AND paid_from = 'Cash Drawer'`
-    ).get(date);
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ? AND date = ? AND paid_from = 'Cash Drawer'`
+    ).get(tenantId, date);
 
     const totalRevenue = db.prepare(
-      `SELECT COALESCE(SUM(total_amount), 0) AS total FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'Reversed')`
-    ).get(date);
+      `SELECT COALESCE(SUM(total_amount), 0) AS total FROM orders WHERE DATE(created_at) = ? AND deleted_at IS NULL AND tenant_id = ? AND (status IS NULL OR status != 'Reversed')`
+    ).get(date, tenantId);
 
     res.json({
       date,

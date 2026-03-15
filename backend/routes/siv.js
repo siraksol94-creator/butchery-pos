@@ -1,24 +1,25 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM siv WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
+    const rows = db.prepare('SELECT * FROM siv WHERE deleted_at IS NULL AND tenant_id = ? ORDER BY created_at DESC').all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL').get();
-    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
-    const totalValue = db.prepare('SELECT COALESCE(SUM(total_value), 0) AS total FROM siv WHERE deleted_at IS NULL').get();
-    const pending = db.prepare("SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL AND status = 'Pending'").get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
+    const totalValue = db.prepare('SELECT COALESCE(SUM(total_value), 0) AS total FROM siv WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const pending = db.prepare("SELECT COUNT(*) AS cnt FROM siv WHERE deleted_at IS NULL AND tenant_id = ? AND status = 'Pending'").get(tenantId);
     res.json({
       totalSIVs: total.cnt,
       thisMonth: thisMonth.cnt,
@@ -74,7 +75,7 @@ router.post('/', auth, (req, res) => {
   }
 });
 
-router.get('/items-summary', (req, res) => {
+router.get('/items-summary', auth, readOnlyGuard, (req, res) => {
   try {
     const { from, to } = req.query;
     let sql = `
@@ -84,9 +85,9 @@ router.get('/items-summary', (req, res) => {
       FROM siv_items si
       JOIN siv s ON s.sync_id = si.siv_sync_id
       JOIN products p ON p.sync_id = si.product_sync_id
-      WHERE s.deleted_at IS NULL
+      WHERE s.deleted_at IS NULL AND s.tenant_id = ?
     `;
-    const params = [];
+    const params = [req.user.tenantId];
     if (from) { sql += ' AND s.date >= ?'; params.push(from); }
     if (to)   { sql += ' AND s.date <= ?'; params.push(to); }
     sql += ' GROUP BY p.sync_id, p.name, p.unit ORDER BY p.name ASC';
@@ -97,7 +98,7 @@ router.get('/items-summary', (req, res) => {
   }
 });
 
-router.get('/item-breakdown', (req, res) => {
+router.get('/item-breakdown', auth, readOnlyGuard, (req, res) => {
   try {
     const { product_id, from, to } = req.query;
     if (!product_id) return res.status(400).json({ error: 'product_id is required' });
@@ -105,9 +106,9 @@ router.get('/item-breakdown', (req, res) => {
       SELECT s.siv_number, s.date, s.created_at, si.quantity, si.unit_price, si.total_price
       FROM siv_items si
       JOIN siv s ON s.sync_id = si.siv_sync_id
-      WHERE si.product_sync_id = (SELECT sync_id FROM products WHERE id = ?) AND s.deleted_at IS NULL
+      WHERE si.product_sync_id = (SELECT sync_id FROM products WHERE id = ?) AND s.deleted_at IS NULL AND s.tenant_id = ?
     `;
-    const params = [product_id];
+    const params = [product_id, req.user.tenantId];
     if (from) { sql += ' AND s.date >= ?'; params.push(from); }
     if (to)   { sql += ' AND s.date <= ?'; params.push(to); }
     sql += ' ORDER BY s.created_at DESC';
@@ -118,12 +119,12 @@ router.get('/item-breakdown', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
-    const siv = db.prepare('SELECT * FROM siv WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    const siv = db.prepare('SELECT * FROM siv WHERE id = ? AND deleted_at IS NULL AND tenant_id = ?').get(req.params.id, req.user.tenantId);
     const items = db.prepare(
-      'SELECT si.*, p.name as product_name, p.unit FROM siv_items si LEFT JOIN products p ON si.product_sync_id = p.sync_id WHERE si.siv_sync_id = (SELECT sync_id FROM siv WHERE id = ?)'
-    ).all(req.params.id);
+      'SELECT si.*, p.name as product_name, p.unit FROM siv_items si LEFT JOIN products p ON si.product_sync_id = p.sync_id WHERE si.siv_sync_id = (SELECT sync_id FROM siv WHERE id = ? AND tenant_id = ?)'
+    ).all(req.params.id, req.user.tenantId);
     res.json({ ...siv, items });
   } catch (error) {
     res.status(500).json({ error: error.message });

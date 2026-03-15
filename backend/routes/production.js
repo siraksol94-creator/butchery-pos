@@ -1,11 +1,11 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // GET /api/production
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT p.*,
@@ -14,9 +14,9 @@ router.get('/', auth, (req, res) => {
         (SELECT COALESCE(SUM(total_cost), 0) FROM production_inputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS total_input_cost,
         (SELECT COALESCE(SUM(quantity), 0) FROM production_outputs WHERE production_sync_id = p.sync_id AND deleted_at IS NULL) AS total_output_qty
       FROM production p
-      WHERE p.deleted_at IS NULL
+      WHERE p.deleted_at IS NULL AND p.tenant_id = ?
       ORDER BY p.date DESC, p.id DESC
-    `).all();
+    `).all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -24,10 +24,11 @@ router.get('/', auth, (req, res) => {
 });
 
 // GET /api/production/stats
-router.get('/stats', auth, (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM production WHERE deleted_at IS NULL').get();
-    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM production WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM production WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM production WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
     res.json({ total: total.cnt, thisMonth: thisMonth.cnt });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -35,9 +36,9 @@ router.get('/stats', auth, (req, res) => {
 });
 
 // GET /api/production/:id
-router.get('/:id', auth, (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
-    const entry = db.prepare('SELECT * FROM production WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    const entry = db.prepare('SELECT * FROM production WHERE id = ? AND deleted_at IS NULL AND tenant_id = ?').get(req.params.id, req.user.tenantId);
     if (!entry) return res.status(404).json({ error: 'Not found' });
     const inputs = db.prepare(`
       SELECT pi.*, p.name AS product_name, p.unit

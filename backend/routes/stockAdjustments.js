@@ -1,11 +1,11 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // GET all adjustments
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT sa.*, p.name AS product_name, p.unit,
@@ -13,9 +13,9 @@ router.get('/', auth, (req, res) => {
       FROM stock_adjustments sa
       LEFT JOIN products p ON sa.product_sync_id = p.sync_id
       LEFT JOIN users u ON sa.created_by = u.id
-      WHERE sa.deleted_at IS NULL
+      WHERE sa.deleted_at IS NULL AND sa.tenant_id = ?
       ORDER BY sa.created_at DESC
-    `).all();
+    `).all(req.user.tenantId);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -23,14 +23,15 @@ router.get('/', auth, (req, res) => {
 });
 
 // GET stats
-router.get('/stats', auth, (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL').get();
-    const increases = db.prepare("SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND adjustment_type = 'increase'").get();
-    const decreases = db.prepare("SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND adjustment_type = 'decrease'").get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const increases = db.prepare("SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND tenant_id = ? AND adjustment_type = 'increase'").get(tenantId);
+    const decreases = db.prepare("SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND tenant_id = ? AND adjustment_type = 'decrease'").get(tenantId);
     const thisMonth = db.prepare(
-      "SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')"
-    ).get();
+      "SELECT COUNT(*) AS cnt FROM stock_adjustments WHERE deleted_at IS NULL AND tenant_id = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')"
+    ).get(tenantId);
     res.json({
       total: total.cnt,
       increases: increases.cnt,

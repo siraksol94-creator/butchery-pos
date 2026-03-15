@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../config/database');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 const multer = require('multer');
@@ -21,9 +22,9 @@ function parseCSV(text) {
   return rows;
 }
 
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM categories WHERE deleted_at IS NULL ORDER BY name').all();
+    const rows = db.prepare('SELECT * FROM categories WHERE deleted_at IS NULL AND tenant_id = ? ORDER BY name').all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });

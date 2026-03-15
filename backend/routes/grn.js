@@ -1,12 +1,12 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // FIFO payment-status SQL (SQLite version — uses CASE instead of GREATEST/LEAST)
 // Soft-deleted GRNs and suppliers are excluded in the CTEs
-const FIFO_SQL = (extraWhere = '', params = []) => ({
+const FIFO_SQL = (extraWhere = '', params = [], tenantId = null) => ({
   text: `
     WITH supplier_paid AS (
       SELECT s.id AS supplier_id,
@@ -15,7 +15,7 @@ const FIFO_SQL = (extraWhere = '', params = []) => ({
       LEFT JOIN ap_payments ap
              ON ap.supplier_id = s.id
             AND ap.deleted_at IS NULL
-      WHERE s.deleted_at IS NULL
+      WHERE s.deleted_at IS NULL${tenantId ? ' AND s.tenant_id = ?' : ''}
       GROUP BY s.id
     ),
     grn_cumulative AS (
@@ -26,7 +26,7 @@ const FIFO_SQL = (extraWhere = '', params = []) => ({
                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
              ) AS cumulative_amount
       FROM grn g
-      WHERE g.deleted_at IS NULL
+      WHERE g.deleted_at IS NULL${tenantId ? ' AND g.tenant_id = ?' : ''}
     ),
     grn_with_avail AS (
       SELECT
@@ -59,13 +59,13 @@ const FIFO_SQL = (extraWhere = '', params = []) => ({
     ${extraWhere}
     ORDER BY gwa.date DESC, gwa.id DESC
   `,
-  values: params,
+  values: tenantId ? [tenantId, tenantId, ...params] : params,
 });
 
 // Get all GRNs
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const q = FIFO_SQL();
+    const q = FIFO_SQL('', [], req.user.tenantId);
     const rows = db.prepare(q.text).all(...q.values);
     res.json(rows);
   } catch (error) {
@@ -74,17 +74,18 @@ router.get('/', (req, res) => {
 });
 
 // GRN stats
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL').get();
-    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
-    const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_sync_id) AS cnt FROM grn WHERE deleted_at IS NULL').get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM grn WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
+    const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_sync_id) AS cnt FROM grn WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
     const unpaid = db.prepare(`
       WITH supplier_paid AS (
         SELECT s.id AS supplier_id, COALESCE(SUM(ap.amount), 0) AS total_paid
         FROM suppliers s
         LEFT JOIN ap_payments ap ON ap.supplier_id = s.id AND ap.deleted_at IS NULL
-        WHERE s.deleted_at IS NULL
+        WHERE s.deleted_at IS NULL AND s.tenant_id = ?
         GROUP BY s.id
       ),
       grn_cumulative AS (
@@ -95,13 +96,13 @@ router.get('/stats', (req, res) => {
                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                ) AS cumulative_amount
         FROM grn g
-        WHERE g.deleted_at IS NULL
+        WHERE g.deleted_at IS NULL AND g.tenant_id = ?
       )
       SELECT COUNT(*) AS cnt
       FROM grn_cumulative gc
       LEFT JOIN supplier_paid sp ON sp.supplier_id = gc.supplier_id
       WHERE COALESCE(sp.total_paid, 0) < gc.cumulative_amount
-    `).get();
+    `).get(tenantId, tenantId);
 
     res.json({
       totalGRNs: total.cnt,
@@ -157,11 +158,11 @@ router.post('/', auth, (req, res) => {
 });
 
 // Product Received Report
-router.get('/product-report', (req, res) => {
+router.get('/product-report', auth, readOnlyGuard, (req, res) => {
   try {
     const { from, to, product_id } = req.query;
-    const params = [];
-    const conditions = ['g.deleted_at IS NULL'];
+    const params = [req.user.tenantId];
+    const conditions = ['g.deleted_at IS NULL', 'g.tenant_id = ?'];
 
     if (from) { params.push(from); conditions.push('g.date >= ?'); }
     if (to)   { params.push(to);   conditions.push('g.date <= ?'); }
@@ -239,16 +240,16 @@ router.put('/:id', auth, (req, res) => {
 });
 
 // Get GRN by ID
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
-    const q = FIFO_SQL('WHERE gwa.id = ?', [req.params.id]);
+    const q = FIFO_SQL('WHERE gwa.id = ?', [req.params.id], req.user.tenantId);
     const grn = db.prepare(q.text).get(...q.values);
     const items = db.prepare(
       `SELECT gi.*, p.name AS product_name
        FROM grn_items gi
        LEFT JOIN products p ON gi.product_sync_id = p.sync_id
-       WHERE gi.grn_sync_id = (SELECT sync_id FROM grn WHERE id = ?)`
-    ).all(req.params.id);
+       WHERE gi.grn_sync_id = (SELECT sync_id FROM grn WHERE id = ? AND tenant_id = ?)`
+    ).all(req.params.id, req.user.tenantId);
     res.json({ ...grn, items });
   } catch (error) {
     res.status(500).json({ error: error.message });

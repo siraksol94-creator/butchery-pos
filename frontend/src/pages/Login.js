@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const isWeb = !navigator.userAgent.toLowerCase().includes('electron');
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -15,7 +18,7 @@ const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, isWeb ? licenseKey : undefined);
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -34,6 +37,12 @@ const Login = () => {
         </div>
         {error && <div className="login-error">{error}</div>}
         <form className="login-form" onSubmit={handleSubmit}>
+          {isWeb && (
+            <div className="form-group">
+              <label>License Key</label>
+              <input type="text" value={licenseKey} onChange={e => setLicenseKey(e.target.value)} placeholder="BUTCH-XXXX-XXXX-XXXX" required />
+            </div>
+          )}
           <div className="form-group">
             <label>Username</label>
             <input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your username" required />

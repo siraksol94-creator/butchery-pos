@@ -1,24 +1,25 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM cash_receipts WHERE deleted_at IS NULL ORDER BY date DESC').all();
+    const rows = db.prepare('SELECT * FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? ORDER BY date DESC').all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const today = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND date = DATE('now')").get();
-    const month = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
-    const count = db.prepare('SELECT COUNT(*) AS cnt FROM cash_receipts WHERE deleted_at IS NULL').get();
-    const avg = db.prepare('SELECT COALESCE(AVG(amount),0) AS avg FROM cash_receipts WHERE deleted_at IS NULL').get();
+    const tenantId = req.user.tenantId;
+    const today = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? AND date = DATE('now')").get(tenantId);
+    const month = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
+    const count = db.prepare('SELECT COUNT(*) AS cnt FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const avg = db.prepare('SELECT COALESCE(AVG(amount),0) AS avg FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
     res.json({
       todayReceipts: parseFloat(today.total),
       thisMonth: parseFloat(month.total),
@@ -31,13 +32,13 @@ router.get('/stats', (req, res) => {
 });
 
 // Check if a Sales CR exists for a given date (must be before /:id)
-router.get('/check-sales', (req, res) => {
+router.get('/check-sales', auth, readOnlyGuard, (req, res) => {
   try {
     const { date } = req.query;
     if (!date) return res.json({ exists: false });
     const row = db.prepare(
-      "SELECT id, receipt_number, amount FROM cash_receipts WHERE deleted_at IS NULL AND received_from = 'Sales' AND date = ?"
-    ).get(date);
+      "SELECT id, receipt_number, amount FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? AND received_from = 'Sales' AND date = ?"
+    ).get(req.user.tenantId, date);
     if (row) {
       res.json({ exists: true, ...row });
     } else {

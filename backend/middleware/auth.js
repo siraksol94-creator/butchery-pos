@@ -21,4 +21,11 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminOnly };
+const readOnlyGuard = (req, res, next) => {
+  if (req.user?.webAccess && req.method !== 'GET') {
+    return res.status(403).json({ error: 'Web access is read-only.' });
+  }
+  next();
+};
+
+module.exports = { auth, adminOnly, readOnlyGuard };

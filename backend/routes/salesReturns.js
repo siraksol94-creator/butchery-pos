@@ -1,19 +1,19 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // GET /api/sales-returns
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT sr.*,
         (SELECT COUNT(*) FROM sales_return_items WHERE return_sync_id = sr.sync_id) AS item_count
       FROM sales_returns sr
-      WHERE sr.deleted_at IS NULL
+      WHERE sr.deleted_at IS NULL AND sr.tenant_id = ?
       ORDER BY sr.date DESC, sr.id DESC
-    `).all();
+    `).all(req.user.tenantId);
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -21,13 +21,13 @@ router.get('/', auth, (req, res) => {
 });
 
 // GET /api/sales-returns/notes — distinct notes history for autocomplete
-router.get('/notes', auth, (req, res) => {
+router.get('/notes', auth, readOnlyGuard, (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT DISTINCT notes FROM sales_returns
-      WHERE deleted_at IS NULL AND notes IS NOT NULL AND notes != ''
+      WHERE deleted_at IS NULL AND tenant_id = ? AND notes IS NOT NULL AND notes != ''
       ORDER BY id DESC LIMIT 50
-    `).all();
+    `).all(req.user.tenantId);
     res.json(rows.map(r => r.notes));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -35,10 +35,11 @@ router.get('/notes', auth, (req, res) => {
 });
 
 // GET /api/sales-returns/stats
-router.get('/stats', auth, (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM sales_returns WHERE deleted_at IS NULL').get();
-    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM sales_returns WHERE deleted_at IS NULL AND date >= date('now', 'start of month')").get();
+    const tenantId = req.user.tenantId;
+    const total = db.prepare('SELECT COUNT(*) AS cnt FROM sales_returns WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
+    const thisMonth = db.prepare("SELECT COUNT(*) AS cnt FROM sales_returns WHERE deleted_at IS NULL AND tenant_id = ? AND date >= date('now', 'start of month')").get(tenantId);
     res.json({ total: total.cnt, thisMonth: thisMonth.cnt });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -97,9 +98,9 @@ router.post('/', auth, (req, res) => {
 });
 
 // GET /api/sales-returns/:id
-router.get('/:id', auth, (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
-    const entry = db.prepare('SELECT * FROM sales_returns WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+    const entry = db.prepare('SELECT * FROM sales_returns WHERE id = ? AND deleted_at IS NULL AND tenant_id = ?').get(req.params.id, req.user.tenantId);
     if (!entry) return res.status(404).json({ error: 'Not found' });
     const items = db.prepare(`
       SELECT sri.*, p.name AS product_name, p.unit

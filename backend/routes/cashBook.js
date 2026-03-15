@@ -1,15 +1,16 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // Get cash book — derived from CR + PV with opening balance
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
+    const tenantId = req.user.tenantId;
     const openingRow = db.prepare(
-      "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL"
-    ).get();
+      "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL AND tenant_id = ?"
+    ).get(tenantId);
     const openingBalance = parseFloat(openingRow.opening);
 
     const { from, to } = req.query;
@@ -21,21 +22,21 @@ router.get('/', (req, res) => {
         COALESCE(received_from, '') || ' - ' || COALESCE(description, '') AS description,
         amount AS receipt_amount, 0 AS payment_amount
       FROM cash_receipts
-      WHERE deleted_at IS NULL${dateFilter}
+      WHERE deleted_at IS NULL AND tenant_id = ?${dateFilter}
       UNION ALL
       SELECT date, 'PV' AS type, voucher_number AS reference,
         COALESCE(paid_to, '') || ' - ' || COALESCE(description, '') AS description,
         0 AS receipt_amount, amount AS payment_amount
       FROM payment_vouchers
-      WHERE deleted_at IS NULL${dateFilter}
+      WHERE deleted_at IS NULL AND tenant_id = ?${dateFilter}
       UNION ALL
       SELECT date, 'AP' AS type, payment_number AS reference,
         COALESCE(supplier_name, '') || ' - ' || COALESCE(description, 'Supplier Payment') AS description,
         0 AS receipt_amount, amount AS payment_amount
       FROM ap_payments
-      WHERE deleted_at IS NULL${dateFilter}
+      WHERE deleted_at IS NULL AND tenant_id = ?${dateFilter}
       ORDER BY date ASC, reference ASC
-    `).all(...dParams, ...dParams, ...dParams);
+    `).all(tenantId, ...dParams, tenantId, ...dParams, tenantId, ...dParams);
 
     let balance = openingBalance;
     const rows = entries.map((e, i) => {
@@ -50,19 +51,20 @@ router.get('/', (req, res) => {
 });
 
 // Stats
-router.get('/stats', (req, res) => {
+router.get('/stats', auth, readOnlyGuard, (req, res) => {
   try {
+    const tenantId = req.user.tenantId;
     const openingRow = db.prepare(
-      "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL"
-    ).get();
+      "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL AND tenant_id = ?"
+    ).get(tenantId);
 
     const { from, to } = req.query;
     const df = (from ? ' AND date >= ?' : '') + (to ? ' AND date <= ?' : '');
     const dp = [...(from ? [from] : []), ...(to ? [to] : [])];
 
-    const receipts = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL${df}`).get(...dp);
-    const payments = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL${df}`).get(...dp);
-    const apPmts   = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL${df}`).get(...dp);
+    const receipts = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ?${df}`).get(tenantId, ...dp);
+    const payments = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ?${df}`).get(tenantId, ...dp);
+    const apPmts   = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL AND tenant_id = ?${df}`).get(tenantId, ...dp);
 
     const opening = parseFloat(openingRow.opening);
     const totalReceipts = parseFloat(receipts.total);

@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -28,7 +28,7 @@ const upload = multer({
 });
 
 // Get all products
-router.get('/', (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const { category, search } = req.query;
     let query = `SELECT p.*, c.name as category_name, c.color as category_color,
@@ -52,8 +52,8 @@ router.get('/', (req, res) => {
                    SELECT product_sync_id, SUM(quantity) as total_qty, SUM(total_price) as total_cost
                    FROM grn_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
                  ) grn_qty ON grn_qty.product_sync_id = p.sync_id
-                 WHERE p.deleted_at IS NULL`;
-    const params = [];
+                 WHERE p.deleted_at IS NULL AND p.tenant_id = ?`;
+    const params = [req.user.tenantId];
 
     if (category && category !== 'All') {
       params.push(category);
@@ -73,12 +73,12 @@ router.get('/', (req, res) => {
 });
 
 // Get product by ID
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readOnlyGuard, (req, res) => {
   try {
     const row = db.prepare(
       `SELECT p.*, c.name as category_name FROM products p
-       LEFT JOIN categories c ON p.category_sync_id = c.sync_id WHERE p.id = ? AND p.deleted_at IS NULL`
-    ).get(req.params.id);
+       LEFT JOIN categories c ON p.category_sync_id = c.sync_id WHERE p.id = ? AND p.deleted_at IS NULL AND p.tenant_id = ?`
+    ).get(req.params.id, req.user.tenantId);
     if (!row) return res.status(404).json({ error: 'Product not found' });
     res.json(row);
   } catch (error) {

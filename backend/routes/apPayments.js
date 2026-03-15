@@ -1,18 +1,18 @@
 const router = require('express').Router();
 const db = require('../config/database');
-const { auth } = require('../middleware/auth');
+const { auth, readOnlyGuard } = require('../middleware/auth');
 const syncConfig = require('../config/syncConfig');
 const { randomUUID } = require('crypto');
 
 // GET /api/ap-payments
-router.get('/', auth, (req, res) => {
+router.get('/', auth, readOnlyGuard, (req, res) => {
   try {
     const { from, to, supplier_id } = req.query;
     let sql = `SELECT ap.*, s.name AS supplier_name_resolved
                FROM ap_payments ap
                LEFT JOIN suppliers s ON s.id = ap.supplier_id
-               WHERE ap.deleted_at IS NULL`;
-    const params = [];
+               WHERE ap.deleted_at IS NULL AND ap.tenant_id = ?`;
+    const params = [req.user.tenantId];
     if (from) { sql += ' AND ap.date >= ?'; params.push(from); }
     if (to)   { sql += ' AND ap.date <= ?'; params.push(to); }
     if (supplier_id) { sql += ' AND ap.supplier_id = ?'; params.push(parseInt(supplier_id)); }
