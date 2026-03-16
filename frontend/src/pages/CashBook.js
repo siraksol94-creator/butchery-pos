@@ -236,18 +236,19 @@ const CashBook = () => {
             </tr>
             {entries.map(e => {
               const isAP = e.type === 'AP';
+              const isCR = e.type === 'CR';
               return (
-                <tr key={e.id} style={isAP ? { background: '#faf5ff' } : {}}>
+                <tr key={e.id} style={isAP ? { background: '#faf5ff' } : isCR ? { background: '#f0fdf4' } : {}}>
                   <td>{formatDate(e.date)}</td>
                   <td style={{ fontWeight: 500 }}>{e.description}</td>
                   <td style={{ color: '#9ca3af', fontSize: 12 }}>{e.reference}</td>
                   <td>
                     <span style={{
                       display: 'inline-block', padding: '2px 7px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                      background: isAP ? '#ede9fe' : '#fee2e2',
-                      color: isAP ? '#7c3aed' : '#dc2626'
+                      background: isAP ? '#ede9fe' : isCR ? '#dcfce7' : '#fee2e2',
+                      color: isAP ? '#7c3aed' : isCR ? '#16a34a' : '#dc2626'
                     }}>
-                      {isAP ? 'AP' : 'PV'}
+                      {e.type}
                     </span>
                   </td>
                   <td style={{ color: '#16a34a', fontWeight: e.receipt_amount > 0 ? 500 : 400 }}>
