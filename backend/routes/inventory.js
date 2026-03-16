@@ -355,19 +355,26 @@ router.get('/bin-card', auth, readOnlyGuard, (req, res) => {
     if (!product_id) return res.status(400).json({ error: 'product_id is required.' });
     const pid = parseInt(product_id);
 
-    // Opening balance: sum of ALL store movements BEFORE the `from` date
     const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ? AND tenant_id = ?').get(pid, req.user.tenantId);
     const pidSync = pidSyncRow?.sync_id;
 
-    let obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements WHERE product_sync_id = ? AND location = 'store'`;
-    const obParams = [pidSync];
-    if (from) { obSql += ' AND created_at < ?'; obParams.push(from); }
-    obSql += ' AND deleted_at IS NULL';
+    // Opening balance: ALL opening movements (any date) + non-opening movements before 'from'
+    let obSql, obParams;
+    if (from) {
+      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
+        WHERE product_sync_id = ? AND location = 'store' AND deleted_at IS NULL
+        AND (movement_type = 'opening' OR created_at < ?)`;
+      obParams = [pidSync, from];
+    } else {
+      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
+        WHERE product_sync_id = ? AND location = 'store' AND deleted_at IS NULL`;
+      obParams = [pidSync];
+    }
     const obRow = db.prepare(obSql).get(...obParams);
     const openingBalance = parseFloat(obRow.opening_balance);
 
-    // Main bin-card query using named params
-    const namedParams = { product_sync_id: pidSync, opening_balance: openingBalance };
+    // Main bin-card query: exclude opening movements (already in opening balance)
+    const namedParams = { product_sync_id: pidSync };
     let sql = `
       SELECT
         sm.id,
@@ -376,21 +383,24 @@ router.get('/bin-card', auth, readOnlyGuard, (req, res) => {
         sm.reference_type,
         COALESCE(g.grn_number, sv.siv_number, pr.production_number, sm.movement_type) AS reference,
         sm.quantity,
-        @opening_balance + SUM(sm.quantity) OVER (
+        SUM(sm.quantity) OVER (
           ORDER BY sm.created_at ASC, sm.id ASC
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) AS balance
+        ) AS running_total
       FROM stock_movements sm
       LEFT JOIN grn g        ON g.sync_id  = sm.reference_sync_id AND sm.reference_type = 'grn'
       LEFT JOIN siv sv       ON sv.sync_id = sm.reference_sync_id AND sm.reference_type = 'siv'
       LEFT JOIN production pr ON pr.sync_id = sm.reference_sync_id AND sm.reference_type = 'production'
-      WHERE sm.product_sync_id = @product_sync_id AND sm.location = 'store' AND sm.deleted_at IS NULL
+      WHERE sm.product_sync_id = @product_sync_id AND sm.location = 'store'
+        AND sm.deleted_at IS NULL AND sm.movement_type != 'opening'
     `;
     if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }
     if (to)   { sql += " AND sm.created_at < date(@to, '+1 day')"; namedParams.to = to; }
     sql += ' ORDER BY sm.created_at ASC, sm.id ASC';
 
-    const rows = db.prepare(sql).all(namedParams);
+    // Add opening balance offset to each row's balance in JS (not SQL) to avoid window function param binding issues
+    const rawRows = db.prepare(sql).all(namedParams);
+    const rows = rawRows.map(row => ({ ...row, balance: openingBalance + row.running_total }));
     res.json({ rows, opening_balance: openingBalance });
   } catch (error) {
     res.status(500).json({ error: error.message });

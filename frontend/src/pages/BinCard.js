@@ -63,15 +63,13 @@ const BinCard = () => {
     }
   };
 
-  // Separate 'opening' type movements — they define the opening balance, not table rows
-  const openingMovements = rows.filter(r => r.movement_type === 'opening');
-  const displayRows      = rows.filter(r => r.movement_type !== 'opening');
-  const openingMovTotal  = openingMovements.reduce((s, r) => s + parseFloat(r.quantity), 0);
+  // Opening movements are excluded from rows by the backend (already included in opening_balance)
+  const displayRows = rows;
 
   // Summary stats
   const totalIn  = displayRows.filter(r => parseFloat(r.quantity) > 0).reduce((s, r) => s + parseFloat(r.quantity), 0);
   const totalOut = displayRows.filter(r => parseFloat(r.quantity) < 0).reduce((s, r) => s + Math.abs(parseFloat(r.quantity)), 0);
-  const openBal  = openingBal + openingMovTotal;
+  const openBal  = openingBal;
   const closeBal = displayRows.length > 0 ? parseFloat(displayRows[displayRows.length - 1].balance) : openBal;
 
   return (
