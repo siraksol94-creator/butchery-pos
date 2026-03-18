@@ -309,15 +309,16 @@ router.post('/sales/actual', auth, readOnlyGuard, (req, res) => {
                randomUUID(), tenantId, branchId, deviceId);
 
         // Create reconciliation movement so POS "In Stock" reflects the actual balance
+        // Step 1: delete ALL old reconciliations first (avoids stacking)
+        db.prepare(
+          `UPDATE stock_movements SET deleted_at = datetime('now'), synced = 0 WHERE product_sync_id = ? AND location = 'sales' AND movement_type = 'reconciliation' AND deleted_at IS NULL`
+        ).run(entryProductSyncId);
+        // Step 2: calculate diff against natural movements only (no reconciliations left)
         const currentSales = db.prepare(
           `SELECT COALESCE(SUM(quantity), 0) AS bal FROM stock_movements WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL`
         ).get(entryProductSyncId);
         const diff = parseFloat(entry.actual_balance) - parseFloat(currentSales.bal);
         if (Math.abs(diff) > 0.0001) {
-          // Remove any previous reconciliation for this product+date to avoid stacking
-          db.prepare(
-            `UPDATE stock_movements SET deleted_at = datetime('now'), synced = 0 WHERE product_sync_id = ? AND location = 'sales' AND movement_type = 'reconciliation' AND date(created_at) = ? AND deleted_at IS NULL`
-          ).run(entryProductSyncId, date);
           db.prepare(`
             INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
             VALUES (?, ?, 'sales', 'reconciliation', ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))

@@ -11,9 +11,19 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
     const openingRow = db.prepare(
       "SELECT COALESCE(SUM(receipt_amount), 0) AS opening FROM cash_book WHERE type = 'opening' AND deleted_at IS NULL AND tenant_id = ?"
     ).get(tenantId);
-    const openingBalance = parseFloat(openingRow.opening);
+    const storedOpening = parseFloat(openingRow.opening);
 
     const { from, to } = req.query;
+
+    // When a date filter is applied, opening balance = stored opening + all transactions before 'from'
+    let openingBalance = storedOpening;
+    if (from) {
+      const beforeCR = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      const beforePV = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      const beforeAP = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      openingBalance = storedOpening + parseFloat(beforeCR.total) - parseFloat(beforePV.total) - parseFloat(beforeAP.total);
+    }
+
     const dateFilter = (from ? ' AND date >= ?' : '') + (to ? ' AND date <= ?' : '');
     const dParams = [...(from ? [from] : []), ...(to ? [to] : [])];
 
@@ -66,7 +76,13 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
     const payments = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ?${df}`).get(tenantId, ...dp);
     const apPmts   = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL AND tenant_id = ?${df}`).get(tenantId, ...dp);
 
-    const opening = parseFloat(openingRow.opening);
+    let opening = parseFloat(openingRow.opening);
+    if (from) {
+      const beforeCR = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM cash_receipts WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      const beforePV = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM payment_vouchers WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      const beforeAP = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS total FROM ap_payments WHERE deleted_at IS NULL AND tenant_id = ? AND date < ?`).get(tenantId, from);
+      opening = opening + parseFloat(beforeCR.total) - parseFloat(beforePV.total) - parseFloat(beforeAP.total);
+    }
     const totalReceipts = parseFloat(receipts.total);
     const totalPV = parseFloat(payments.total);
     const totalAP = parseFloat(apPmts.total);

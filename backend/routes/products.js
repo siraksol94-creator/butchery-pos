@@ -33,7 +33,17 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
     const { category, search } = req.query;
     let query = `SELECT p.*, c.name as category_name, c.color as category_color,
                    COALESCE(store_agg.store_balance, 0) as store_balance,
-                   COALESCE(sales_agg.sales_balance, 0) as sales_balance,
+                   CASE
+                     WHEN actual_agg.actual_balance IS NOT NULL THEN
+                       actual_agg.actual_balance + COALESCE((
+                         SELECT SUM(sm2.quantity) FROM stock_movements sm2
+                         WHERE sm2.product_sync_id = p.sync_id AND sm2.location = 'sales'
+                           AND sm2.movement_type != 'reconciliation'
+                           AND sm2.deleted_at IS NULL
+                           AND sm2.created_at > actual_agg.date || ' 23:59:59'
+                       ), 0)
+                     ELSE COALESCE(sales_agg.sales_balance, 0)
+                   END as sales_balance,
                    CASE WHEN COALESCE(grn_qty.total_qty, 0) > 0
                      THEN ROUND(COALESCE(grn_qty.total_cost, 0) / grn_qty.total_qty, 2)
                      ELSE p.cost_price
@@ -46,8 +56,17 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
                  ) store_agg ON store_agg.product_sync_id = p.sync_id
                  LEFT JOIN (
                    SELECT product_sync_id, SUM(quantity) as sales_balance
-                   FROM stock_movements WHERE location = 'sales' AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+                   FROM stock_movements WHERE location = 'sales' AND movement_type != 'reconciliation' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
                  ) sales_agg ON sales_agg.product_sync_id = p.sync_id
+                 LEFT JOIN (
+                   SELECT dab.product_sync_id, dab.actual_balance, dab.date
+                   FROM daily_actual_balance dab
+                   INNER JOIN (
+                     SELECT product_sync_id, MAX(date) as max_date
+                     FROM daily_actual_balance WHERE deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+                   ) latest ON latest.product_sync_id = dab.product_sync_id AND latest.max_date = dab.date
+                   WHERE dab.deleted_at IS NULL
+                 ) actual_agg ON actual_agg.product_sync_id = p.sync_id
                  LEFT JOIN (
                    SELECT product_sync_id, SUM(quantity) as total_qty, SUM(total_price) as total_cost
                    FROM grn_items WHERE product_sync_id IS NOT NULL GROUP BY product_sync_id
