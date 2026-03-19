@@ -8,8 +8,9 @@ const CashBook = () => {
   const [editingOB, setEditingOB] = useState(false);
   const [obInput, setObInput] = useState('');
   const [savingOB, setSavingOB] = useState(false);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [from, setFrom] = useState(todayStr);
+  const [to, setTo] = useState(todayStr);
 
   const fetchData = async (f, t) => {
     try {
@@ -27,7 +28,7 @@ const CashBook = () => {
     } catch (err) { /* use defaults */ }
   };
 
-  useEffect(() => { fetchData(from, to); }, []); // eslint-disable-line
+  useEffect(() => { fetchData(todayStr, todayStr); }, []); // eslint-disable-line
 
   const handleFilter = () => fetchData(from, to);
   const handleClearFilter = () => { setFrom(''); setTo(''); fetchData('', ''); };
@@ -164,10 +165,17 @@ const CashBook = () => {
               ) : (
                 <span>
                   ${openingBal.toLocaleString()}
-                  <button onClick={() => { setObInput(String(openingBal)); setEditingOB(true); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', marginLeft: 6, fontSize: 13 }}>
-                    <FiEdit2 />
-                  </button>
+                  {!from && !to && (
+                    <button onClick={() => {
+                      if (window.confirm('Editing the opening balance will affect all running balances in the Cash Book. Do you want to continue?')) {
+                        setObInput(String(openingBal));
+                        setEditingOB(true);
+                      }
+                    }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', marginLeft: 6, fontSize: 13 }}>
+                      <FiEdit2 />
+                    </button>
+                  )}
                 </span>
               )}
             </div>

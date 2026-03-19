@@ -26,8 +26,12 @@ import CashReport from './pages/CashReport';
 import StockAdjustment from './pages/StockAdjustment';
 import Categories from './pages/Categories';
 import BinCard from './pages/BinCard';
+import SalesBinCard from './pages/SalesBinCard';
 import Production from './pages/Production';
 import SalesReturn from './pages/SalesReturn';
+import Register from './pages/Register';
+
+const isWeb = !navigator.userAgent.toLowerCase().includes('electron');
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -71,11 +75,13 @@ function AppRoutes() {
   const [isConfigured, setIsConfigured]   = useState(true); // optimistic default
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [trialStatus, setTrialStatus]     = useState(null);
+  const [hasUsers, setHasUsers]           = useState(true); // optimistic default
+  const { loginWithToken } = useAuth();
 
   useEffect(() => {
     fetch('/api/sync/status')
       .then(r => r.json())
-      .then(data => {
+      .then(async data => {
         setIsConfigured(!!data.isConfigured);
         if (data.isConfigured && data.tenantId && data.tenantId !== 'local-only') {
           // Cloud-registered: check license on VPS
@@ -90,10 +96,23 @@ function AppRoutes() {
             .then(setTrialStatus)
             .catch(() => {});
         }
+        // Desktop only: check if any user account exists, auto-login if trial mode
+        if (!isWeb && !localStorage.getItem('token')) {
+          try {
+            const acctRes = await fetch('/api/auth/account-status');
+            const acct = await acctRes.json();
+            setHasUsers(acct.hasUsers);
+            if (!acct.hasUsers && !acct.isTrialExpired) {
+              const tlRes = await fetch('/api/auth/trial-login', { method: 'POST' });
+              const tlData = await tlRes.json();
+              if (tlData.token) loginWithToken(tlData.token, tlData.user);
+            }
+          } catch (e) {}
+        }
       })
       .catch(() => setIsConfigured(true))
       .finally(() => setSyncChecked(true));
-  }, []);
+  }, []); // eslint-disable-line
 
   if (!syncChecked) {
     return (
@@ -124,8 +143,11 @@ function AppRoutes() {
     );
   }
 
-  // 14-day trial expired — block access for local-only users
+  // 14-day trial expired — if no account yet, let them register; otherwise block
   if (trialStatus?.trialApplicable && trialStatus?.isExpired) {
+    if (!hasUsers) {
+      return <Register onRegistered={() => setHasUsers(true)} />;
+    }
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fef2f2', padding: 32, textAlign: 'center' }}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
@@ -147,9 +169,10 @@ function AppRoutes() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <LicenseBanner licenseStatus={licenseStatus} trialStatus={trialStatus} />
+      <LicenseBanner licenseStatus={licenseStatus} trialStatus={trialStatus} hasUsers={hasUsers} />
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register onRegistered={() => setHasUsers(true)} />} />
       <Route path="/setup" element={<Setup onComplete={() => setIsConfigured(true)} />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<DefaultRedirect />} />
@@ -158,6 +181,7 @@ function AppRoutes() {
         <Route path="pos/sales-report" element={<PermRoute perms={['Sales','Reports']}><SalesReport /></PermRoute>} />
         <Route path="pos/sales-inventory" element={<PermRoute perms={['Sales','Reports']}><SalesInventory /></PermRoute>} />
         <Route path="pos/cash-report" element={<PermRoute perms={['Sales','Reports']}><CashReport /></PermRoute>} />
+        <Route path="pos/sales-bin-card" element={<PermRoute perms={['Sales','Reports']}><SalesBinCard /></PermRoute>} />
         <Route path="stock/items" element={<PermRoute perms={['Stock','GRN','SIV']}><ItemDetails /></PermRoute>} />
         <Route path="stock/grn" element={<PermRoute perms={['GRN','Stock']}><GRN /></PermRoute>} />
         <Route path="stock/siv" element={<PermRoute perms={['SIV','Stock']}><SIV /></PermRoute>} />

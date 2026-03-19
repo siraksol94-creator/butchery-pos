@@ -38,8 +38,8 @@ const GRN = () => {
   const [addRowError, setAddRowError] = useState('');
 
   // ── List date filter ──────────────────────────────────────────────
-  const [filterFrom, setFilterFrom] = useState('');
-  const [filterTo,   setFilterTo]   = useState('');
+  const [filterFrom, setFilterFrom] = useState(todayStr);
+  const [filterTo,   setFilterTo]   = useState(todayStr);
 
   // ── Print preview ─────────────────────────────────────────────────
   const [showPrintPreview, setShowPrintPreview] = useState(false);

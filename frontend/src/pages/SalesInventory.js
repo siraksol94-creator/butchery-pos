@@ -325,37 +325,53 @@ const SalesInventory = () => {
         </button>
       </div>
 
-      {/* Summary Strip — Horizontal */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-        {summaryCards.map(card => (
+      {/* Summary Cards */}
+      {(() => {
+        const daily = summaryCards.filter(c => !c.monthly);
+        const monthly = summaryCards.filter(c => c.monthly);
+        const renderCard = (card) => (
           <div key={card.label} style={{
-            flex: '1 1 140px', display: 'flex', alignItems: 'center', gap: 12,
-            padding: '14px 18px', borderRadius: 12,
+            flex: '1 1 0', display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 16px', borderRadius: 12,
             background: card.bg,
-            border: card.monthly ? `1.5px dashed ${card.border}` : `1.5px solid ${card.border}`,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minWidth: 140,
+            border: `1.5px solid ${card.border}`,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minWidth: 0, overflow: 'hidden',
           }}>
             <div style={{
-              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
               background: card.color + '1a', display: 'flex',
               alignItems: 'center', justifyContent: 'center', color: card.color,
             }}>
               {card.icon}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{
-                fontSize: 10, color: card.monthly ? card.color : '#6b7280', fontWeight: 600,
-                letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 3
+                fontSize: 10, color: '#6b7280', fontWeight: 600,
+                letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 2,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
               }}>
                 {card.label}
               </div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: card.color, lineHeight: 1.2 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: card.color, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {card.prefix}{card.value}
               </div>
             </div>
           </div>
-        ))}
-      </div>
+        );
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {daily.map(renderCard)}
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
+                {filterDate.slice(0, 7)} MTD
+              </div>
+              {monthly.map(c => renderCard({ ...c, label: c.label.replace(/^\S+ /, '') }))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filters */}
       <div className="card" style={{ marginBottom: 20 }}>

@@ -408,4 +408,60 @@ router.get('/bin-card', auth, readOnlyGuard, (req, res) => {
   }
 });
 
+// GET /api/inventory/sales-bin-card
+router.get('/sales-bin-card', auth, readOnlyGuard, (req, res) => {
+  try {
+    const { product_id, from, to } = req.query;
+    if (!product_id) return res.status(400).json({ error: 'product_id is required.' });
+    const pid = parseInt(product_id);
+
+    const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ? AND tenant_id = ?').get(pid, req.user.tenantId);
+    const pidSync = pidSyncRow?.sync_id;
+
+    // Opening balance: sum of all sales movements before 'from'
+    let obSql, obParams;
+    if (from) {
+      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
+        WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL AND created_at < ?`;
+      obParams = [pidSync, from];
+    } else {
+      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
+        WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL AND 1=0`;
+      obParams = [pidSync];
+    }
+    const obRow = db.prepare(obSql).get(...obParams);
+    const openingBalance = parseFloat(obRow.opening_balance);
+
+    const namedParams = { product_sync_id: pidSync };
+    let sql = `
+      SELECT
+        sm.id,
+        date(sm.created_at) AS date,
+        sm.movement_type,
+        sm.reference_type,
+        COALESCE(o.order_number, sv.siv_number, sr.return_number, sm.movement_type) AS reference,
+        sm.quantity,
+        SUM(sm.quantity) OVER (
+          ORDER BY sm.created_at ASC, sm.id ASC
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_total
+      FROM stock_movements sm
+      LEFT JOIN orders o         ON o.sync_id  = sm.reference_sync_id AND sm.reference_type = 'order'
+      LEFT JOIN siv sv           ON sv.sync_id = sm.reference_sync_id AND sm.reference_type = 'siv'
+      LEFT JOIN sales_returns sr ON sr.sync_id = sm.reference_sync_id AND sm.reference_type = 'sales_return'
+      WHERE sm.product_sync_id = @product_sync_id AND sm.location = 'sales'
+        AND sm.deleted_at IS NULL
+    `;
+    if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }
+    if (to)   { sql += " AND sm.created_at < date(@to, '+1 day')"; namedParams.to = to; }
+    sql += ' ORDER BY sm.created_at ASC, sm.id ASC';
+
+    const rawRows = db.prepare(sql).all(namedParams);
+    const rows = rawRows.map(row => ({ ...row, balance: openingBalance + row.running_total }));
+    res.json({ rows, opening_balance: openingBalance });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

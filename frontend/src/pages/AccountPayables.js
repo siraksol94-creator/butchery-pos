@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown } from '../services/api';
-import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter } from 'react-icons/fi';
+import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown, updateApPayment } from '../services/api';
+import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter, FiEdit2, FiSave } from 'react-icons/fi';
 
 const getStatusBadge = (status) => {
   const map = { 'Paid': 'badge-green', 'Partial': 'badge-orange', 'Unpaid': 'badge-red', 'No Purchases': 'badge-gray' };
@@ -16,6 +16,9 @@ const AccountPayables = () => {
   const [error, setError] = useState('');
   const [breakdown, setBreakdown] = useState(null);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null); // { id, amount, date, description, paid_from }
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const fetchData = async () => {
     try {
@@ -68,6 +71,29 @@ const AccountPayables = () => {
       setBreakdown(res.data);
     } catch (e) { /* keep empty */ }
     setLoadingBreakdown(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPayment.amount || parseFloat(editingPayment.amount) <= 0) { setEditError('Enter a valid amount.'); return; }
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateApPayment(editingPayment.id, {
+        amount: parseFloat(editingPayment.amount),
+        date: editingPayment.date,
+        description: editingPayment.description,
+        paid_from: editingPayment.paid_from,
+      });
+      setEditingPayment(null);
+      // Refresh breakdown
+      const res = await getSupplierBreakdown(breakdown.supplier.id || breakdown.supplier.supplier_id);
+      setBreakdown(res.data);
+      fetchData();
+    } catch (err) {
+      setEditError(err.response?.data?.error || 'Failed to update payment.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -251,16 +277,49 @@ const AccountPayables = () => {
                           <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Date</th>
                           <th style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }}>Description</th>
                           <th style={{ textAlign: 'right', padding: '7px 10px', fontWeight: 600 }}>Amount</th>
+                          <th style={{ padding: '7px 10px' }}></th>
                         </tr>
                       </thead>
                       <tbody>
                         {breakdown.payments.map(p => (
+                          editingPayment?.id === p.id ? (
+                            <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', background: '#fffbeb' }}>
+                              <td style={{ padding: '7px 10px', color: '#6b7280', fontSize: 12 }}>{p.payment_number}</td>
+                              <td style={{ padding: '4px 6px' }}>
+                                <input type="date" value={editingPayment.date} onChange={e => setEditingPayment(ep => ({ ...ep, date: e.target.value }))}
+                                  style={{ padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, width: '100%' }} />
+                              </td>
+                              <td style={{ padding: '4px 6px' }}>
+                                <input type="text" value={editingPayment.description} onChange={e => setEditingPayment(ep => ({ ...ep, description: e.target.value }))}
+                                  style={{ padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, width: '100%' }} />
+                              </td>
+                              <td style={{ padding: '4px 6px' }}>
+                                <input type="number" value={editingPayment.amount} onChange={e => setEditingPayment(ep => ({ ...ep, amount: e.target.value }))}
+                                  style={{ padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, width: 80, textAlign: 'right' }} />
+                              </td>
+                              <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>
+                                <button onClick={handleSaveEdit} disabled={editSaving} style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontSize: 12, marginRight: 4 }}>
+                                  {editSaving ? '...' : <FiSave size={12} />}
+                                </button>
+                                <button onClick={() => { setEditingPayment(null); setEditError(''); }} style={{ background: '#f3f4f6', border: 'none', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontSize: 12 }}>
+                                  <FiX size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          ) : (
                           <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '7px 10px', color: '#6b7280' }}>{p.payment_number}</td>
                             <td style={{ padding: '7px 10px' }}>{formatDate(p.date)}</td>
                             <td style={{ padding: '7px 10px', color: '#6b7280' }}>{p.description || '—'}</td>
                             <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>K{parseFloat(p.amount).toLocaleString()}</td>
+                            <td style={{ padding: '7px 10px' }}>
+                              <button onClick={() => { setEditingPayment({ id: p.id, amount: p.amount, date: p.date, description: p.description || '', paid_from: p.paid_from || '' }); setEditError(''); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+                                <FiEdit2 size={13} />
+                              </button>
+                            </td>
                           </tr>
+                          )
                         ))}
                         <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
                           <td colSpan="3" style={{ padding: '7px 10px', textAlign: 'right' }}>Total Paid:</td>
@@ -269,6 +328,8 @@ const AccountPayables = () => {
                       </tbody>
                     </table>
                   )}
+
+                  {editError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{editError}</div>}
 
                   {/* Balance */}
                   {(() => {

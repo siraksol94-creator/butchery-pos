@@ -30,6 +30,7 @@ api.interceptors.response.use(
 // Auth
 export const login = (data) => api.post('/auth/login', data);
 export const register = (data) => api.post('/auth/register', data);
+export const registerFirst = (data) => api.post('/auth/register-first', data);
 
 // Dashboard
 export const getDashboard = () => api.get('/dashboard');
@@ -92,6 +93,7 @@ export const getSIVBreakdown = (date, product_id) => api.get('/inventory/sales/s
 export const saveSalesActualBalance = (data) => api.post('/inventory/sales/actual', data);
 export const getInventoryStats = () => api.get('/inventory/stats');
 export const getBinCard = (params) => api.get('/inventory/bin-card', { params });
+export const getSalesBinCard = (params) => api.get('/inventory/sales-bin-card', { params });
 
 // SIV
 export const getSIVs = () => api.get('/siv');
@@ -126,6 +128,7 @@ export const getAccountPayables = () => api.get('/account-payables');
 export const getSupplierBreakdown = (supplierId) => api.get(`/account-payables/breakdown/${supplierId}`);
 export const createApPayment = (data) => api.post('/ap-payments', data);
 export const getApPayments = (params) => api.get('/ap-payments', { params });
+export const updateApPayment = (id, data) => api.put(`/ap-payments/${id}`, data);
 export const deleteApPayment = (id) => api.delete(`/ap-payments/${id}`);
 export const getAccountPayableStats = () => api.get('/account-payables/stats');
 export const createAccountPayable = (data) => api.post('/account-payables', data);

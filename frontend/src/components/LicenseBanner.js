@@ -1,7 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiAlertTriangle, FiXCircle } from 'react-icons/fi';
 
-const LicenseBanner = ({ licenseStatus, trialStatus }) => {
+const LicenseBanner = ({ licenseStatus, trialStatus, hasUsers }) => {
+  const navigate = useNavigate();
   // Cloud license warning
   if (licenseStatus && !licenseStatus.localOnly && licenseStatus.valid !== undefined) {
     const { isExpired, daysRemaining, expiresAt } = licenseStatus;
@@ -44,11 +46,16 @@ const LicenseBanner = ({ licenseStatus, trialStatus }) => {
       <div style={{
         background: '#fffbeb', borderBottom: '2px solid #fcd34d',
         padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 10,
-        color: '#92400e', fontSize: 14,
+        color: '#92400e', fontSize: 14, flexWrap: 'wrap',
       }}>
         <FiAlertTriangle size={16} />
         <strong>Free Trial</strong> — {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining.
         Contact SIDAN IT and Business Solutions to activate your license.
+        {!hasUsers && (
+          <button onClick={() => navigate('/register')} style={{ marginLeft: 'auto', padding: '4px 14px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Create Account
+          </button>
+        )}
       </div>
     );
   }

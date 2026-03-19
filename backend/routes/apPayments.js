@@ -39,6 +39,19 @@ router.post('/', auth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUT /api/ap-payments/:id
+router.put('/:id', auth, (req, res) => {
+  try {
+    const { amount, date, description, paid_from } = req.body;
+    if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Amount is required.' });
+    db.prepare(`
+      UPDATE ap_payments SET amount=?, date=?, description=?, paid_from=?, synced=0, updated_at=datetime('now')
+      WHERE id=? AND deleted_at IS NULL
+    `).run(parseFloat(amount), date, description || null, paid_from || null, req.params.id);
+    res.json(db.prepare('SELECT * FROM ap_payments WHERE id=?').get(req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /api/ap-payments/:id
 router.delete('/:id', auth, (req, res) => {
   try {

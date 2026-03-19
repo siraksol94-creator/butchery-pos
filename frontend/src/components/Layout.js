@@ -141,6 +141,7 @@ const Layout = () => {
     const titles = {
       '/dashboard': t('dashboard'), '/pos': t('pos'), '/pos/sales-report': t('salesReport'),
       '/pos/sales-inventory': t('salesInventory'), '/pos/cash-report': t('cashReport'),
+      '/pos/sales-bin-card': 'Sales Bin Card',
       '/stock/items': t('itemDetails'), '/stock/grn': t('grn'), '/stock/siv': t('siv'),
       '/stock/production': 'Production', '/stock/sales-returns': 'Sales Returns',
       '/stock/inventory': t('inventory'), '/stock/adjustments': t('stockAdjustment'),
@@ -212,6 +213,11 @@ const Layout = () => {
                   {canSee('Sales', 'Reports') && (
                     <div className={`nav-item ${isActive('/pos/cash-report') ? 'active' : ''}`} onClick={() => navigate('/pos/cash-report')}>
                       <FiDollarSign className="nav-icon" /> <span>{t('cashReport')}</span>
+                    </div>
+                  )}
+                  {canSee('Sales', 'Reports') && (
+                    <div className={`nav-item ${isActive('/pos/sales-bin-card') ? 'active' : ''}`} onClick={() => navigate('/pos/sales-bin-card')}>
+                      <FiBook className="nav-icon" /> <span>Sales Bin Card</span>
                     </div>
                   )}
                 </div>
