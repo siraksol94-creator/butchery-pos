@@ -183,10 +183,12 @@ router.get('/sales', auth, readOnlyGuard, (req, res) => {
       ) sales_day_agg ON sales_day_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
-        SELECT product_sync_id, ABS(SUM(quantity)) AS total_returns
-        FROM stock_movements WHERE location = 'sales' AND movement_type = 'sales_return'
-          AND created_at >= @date AND created_at < date(@date, '+1 day') AND deleted_at IS NULL AND product_sync_id IS NOT NULL
-        GROUP BY product_sync_id
+        SELECT sm.product_sync_id, ABS(SUM(sm.quantity)) AS total_returns
+        FROM stock_movements sm
+        JOIN sales_returns sr ON sr.sync_id = sm.reference_sync_id
+        WHERE sm.location = 'sales' AND sm.movement_type = 'sales_return'
+          AND sr.date = @date AND sm.deleted_at IS NULL AND sm.product_sync_id IS NOT NULL
+        GROUP BY sm.product_sync_id
       ) returns_day_agg ON returns_day_agg.product_sync_id = p.sync_id
 
       LEFT JOIN (
@@ -418,15 +420,23 @@ router.get('/sales-bin-card', auth, readOnlyGuard, (req, res) => {
     const pidSyncRow = db.prepare('SELECT sync_id FROM products WHERE id = ? AND tenant_id = ?').get(pid, req.user.tenantId);
     const pidSync = pidSyncRow?.sync_id;
 
+    // For sales_return movements, use the user-selected date (sr.date) not created_at
+    const effectiveDate = `CASE WHEN sm.movement_type = 'sales_return' AND sr.date IS NOT NULL THEN sr.date ELSE date(sm.created_at) END`;
+
     // Opening balance: sum of all sales movements before 'from'
     let obSql, obParams;
     if (from) {
-      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
-        WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL AND created_at < ?`;
+      obSql = `SELECT COALESCE(SUM(sm.quantity), 0) AS opening_balance
+        FROM stock_movements sm
+        LEFT JOIN sales_returns sr ON sr.sync_id = sm.reference_sync_id AND sm.reference_type = 'sales_return'
+        WHERE sm.product_sync_id = ? AND sm.location = 'sales' AND sm.deleted_at IS NULL
+          AND (CASE WHEN sm.movement_type = 'sales_return' AND sr.date IS NOT NULL THEN sr.date ELSE date(sm.created_at) END) < ?`;
       obParams = [pidSync, from];
     } else {
-      obSql = `SELECT COALESCE(SUM(quantity), 0) AS opening_balance FROM stock_movements
-        WHERE product_sync_id = ? AND location = 'sales' AND deleted_at IS NULL AND 1=0`;
+      obSql = `SELECT COALESCE(SUM(sm.quantity), 0) AS opening_balance
+        FROM stock_movements sm
+        LEFT JOIN sales_returns sr ON sr.sync_id = sm.reference_sync_id AND sm.reference_type = 'sales_return'
+        WHERE sm.product_sync_id = ? AND sm.location = 'sales' AND sm.deleted_at IS NULL AND 1=0`;
       obParams = [pidSync];
     }
     const obRow = db.prepare(obSql).get(...obParams);
@@ -436,13 +446,13 @@ router.get('/sales-bin-card', auth, readOnlyGuard, (req, res) => {
     let sql = `
       SELECT
         sm.id,
-        date(sm.created_at) AS date,
+        (${effectiveDate}) AS date,
         sm.movement_type,
         sm.reference_type,
         COALESCE(o.order_number, sv.siv_number, sr.return_number, sm.movement_type) AS reference,
         sm.quantity,
         SUM(sm.quantity) OVER (
-          ORDER BY sm.created_at ASC, sm.id ASC
+          ORDER BY (${effectiveDate}) ASC, sm.id ASC
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS running_total
       FROM stock_movements sm
@@ -452,9 +462,9 @@ router.get('/sales-bin-card', auth, readOnlyGuard, (req, res) => {
       WHERE sm.product_sync_id = @product_sync_id AND sm.location = 'sales'
         AND sm.deleted_at IS NULL
     `;
-    if (from) { sql += ' AND sm.created_at >= @from'; namedParams.from = from; }
-    if (to)   { sql += " AND sm.created_at < date(@to, '+1 day')"; namedParams.to = to; }
-    sql += ' ORDER BY sm.created_at ASC, sm.id ASC';
+    if (from) { sql += ` AND (${effectiveDate}) >= @from`; namedParams.from = from; }
+    if (to)   { sql += ` AND (${effectiveDate}) <= @to`; namedParams.to = to; }
+    sql += ` ORDER BY (${effectiveDate}) ASC, sm.id ASC`;
 
     const rawRows = db.prepare(sql).all(namedParams);
     const rows = rawRows.map(row => ({ ...row, balance: openingBalance + row.running_total }));

@@ -101,7 +101,7 @@ const SalesInventory = () => {
     const profit = totalSellingPrice - totalCostPrice + totalDifference;
     const stockingPrice = actualVal * sellingPrice;
     return {
-      openingBalance, input, totalStock, totalSales, salesBalance,
+      openingBalance, input, totalStock, totalSales, salesReturns, salesBalance,
       costPrice, sellingPrice, actualVal, difference,
       totalCostPrice, totalSellingPrice, totalDifference, profit, stockingPrice
     };
@@ -165,13 +165,14 @@ const SalesInventory = () => {
   const summaryTotals = filtered.reduce((acc, p) => {
     const r = computeRow(p);
     acc.totalSales += r.totalSales;
+    acc.totalReturns += r.salesReturns;
     acc.totalCost += r.totalCostPrice;
     acc.totalRevenue += r.totalSellingPrice;
     acc.totalProfit += r.profit;
     acc.totalStocking += r.stockingPrice;
     acc.totalDiff += r.totalDifference || 0;
     return acc;
-  }, { totalSales: 0, totalCost: 0, totalRevenue: 0, totalProfit: 0, totalStocking: 0, totalDiff: 0 });
+  }, { totalSales: 0, totalReturns: 0, totalCost: 0, totalRevenue: 0, totalProfit: 0, totalStocking: 0, totalDiff: 0 });
 
   const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -421,6 +422,7 @@ const SalesInventory = () => {
                   <th style={{ textAlign: 'right' }}>Input</th>
                   <th style={{ textAlign: 'right' }}>Total Stock</th>
                   <th style={{ textAlign: 'right' }}>Total Sales</th>
+                  <th style={{ textAlign: 'right' }}>Returns</th>
                   <th style={{ textAlign: 'right' }}>Sales Bal.</th>
                   <th style={{ textAlign: 'right', color: '#15803d', background: '#f0fdf4' }}>Actual Bal.</th>
                   <th style={{ textAlign: 'right' }}>Difference</th>
@@ -457,6 +459,7 @@ const SalesInventory = () => {
                       <td style={{ textAlign: 'right', color: r.input > 0 ? '#2563eb' : '#9ca3af' }}>{r.input.toLocaleString()}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.totalStock.toLocaleString()}</td>
                       <td style={{ textAlign: 'right', color: r.totalSales > 0 ? '#dc2626' : '#9ca3af' }}>{r.totalSales.toLocaleString()}</td>
+                      <td style={{ textAlign: 'right', color: r.salesReturns > 0 ? '#d97706' : '#9ca3af' }}>{r.salesReturns > 0 ? r.salesReturns.toLocaleString() : '—'}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.salesBalance.toLocaleString()}</td>
 
                       {/* Actual Balance */}
@@ -633,7 +636,8 @@ const SalesInventory = () => {
                   <td>TOTALS</td>
                   <td colSpan={3}></td>
                   <td style={{ textAlign: 'right' }}>{summaryTotals.totalSales.toLocaleString()}</td>
-                  <td colSpan={5}></td>
+                  <td style={{ textAlign: 'right', color: '#d97706' }}>{summaryTotals.totalReturns > 0 ? summaryTotals.totalReturns.toLocaleString() : '—'}</td>
+                  <td colSpan={4}></td>
                   <td></td>
                   <td style={{ textAlign: 'right' }}>${fmt(summaryTotals.totalCost)}</td>
                   <td style={{ textAlign: 'right' }}>${fmt(summaryTotals.totalRevenue)}</td>

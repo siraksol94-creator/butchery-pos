@@ -29,7 +29,6 @@ import BinCard from './pages/BinCard';
 import SalesBinCard from './pages/SalesBinCard';
 import Production from './pages/Production';
 import SalesReturn from './pages/SalesReturn';
-import Register from './pages/Register';
 
 const isWeb = !navigator.userAgent.toLowerCase().includes('electron');
 
@@ -73,10 +72,8 @@ const DefaultRedirect = () => {
 function AppRoutes() {
   const [syncChecked, setSyncChecked]     = useState(false);
   const [isConfigured, setIsConfigured]   = useState(true); // optimistic default
-  const [licenseStatus, setLicenseStatus] = useState(null);
-  const [trialStatus, setTrialStatus]     = useState(null);
   const [hasUsers, setHasUsers]           = useState(true); // optimistic default
-  const { loginWithToken } = useAuth();
+  const [licenseStatus, setLicenseStatus] = useState(null);
 
   useEffect(() => {
     fetch('/api/sync/status')
@@ -84,29 +81,17 @@ function AppRoutes() {
       .then(async data => {
         setIsConfigured(!!data.isConfigured);
         if (data.isConfigured && data.tenantId && data.tenantId !== 'local-only') {
-          // Cloud-registered: check license on VPS
           fetch(`https://butchery.sidanitsolutions.com/api/sync/license-status?tenantId=${data.tenantId}`)
             .then(r => r.json())
             .then(setLicenseStatus)
             .catch(() => {});
-        } else {
-          // Local-only / offline: enforce 14-day trial
-          fetch('/api/sync/trial-status')
-            .then(r => r.json())
-            .then(setTrialStatus)
-            .catch(() => {});
         }
-        // Desktop only: check if any user account exists, auto-login if trial mode
+        // Check if any user accounts exist (desktop only, not logged in)
         if (!isWeb && !localStorage.getItem('token')) {
           try {
             const acctRes = await fetch('/api/auth/account-status');
             const acct = await acctRes.json();
             setHasUsers(acct.hasUsers);
-            if (!acct.hasUsers && !acct.isTrialExpired) {
-              const tlRes = await fetch('/api/auth/trial-login', { method: 'POST' });
-              const tlData = await tlRes.json();
-              if (tlData.token) loginWithToken(tlData.token, tlData.user);
-            }
           } catch (e) {}
         }
       })
@@ -122,8 +107,14 @@ function AppRoutes() {
     );
   }
 
-  if (!isConfigured) {
-    return <Setup onComplete={() => setIsConfigured(true)} />;
+  // Not configured OR configured but no users yet (Step 1 done, Step 2 not done)
+  if (!isConfigured || (!hasUsers && !localStorage.getItem('token'))) {
+    return (
+      <Setup
+        onComplete={() => { setIsConfigured(true); setHasUsers(true); }}
+        startAtCreateAdmin={isConfigured && !hasUsers}
+      />
+    );
   }
 
   // Cloud license expired — block access
@@ -143,37 +134,12 @@ function AppRoutes() {
     );
   }
 
-  // 14-day trial expired — if no account yet, let them register; otherwise block
-  if (trialStatus?.trialApplicable && trialStatus?.isExpired) {
-    if (!hasUsers) {
-      return <Register onRegistered={() => setHasUsers(true)} />;
-    }
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fef2f2', padding: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
-        <h1 style={{ color: '#dc2626', fontSize: 24, marginBottom: 8 }}>Trial Period Expired</h1>
-        <p style={{ color: '#7f1d1d', fontSize: 15, maxWidth: 420 }}>
-          Your 14-day free trial has ended. Contact SIDAN IT and Business Solutions to activate your license.
-        </p>
-        <p style={{ color: '#6b7280', fontSize: 13, marginTop: 16 }}>
-          SIDAN IT and Business Solutions<br />
-          +260 775 722 196 &nbsp;/&nbsp; +260 775 722 228<br />
-          www.sidanitsolutions.com
-        </p>
-        <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 24 }}>
-          Your data is safe and will be available once the license is activated.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <LicenseBanner licenseStatus={licenseStatus} trialStatus={trialStatus} hasUsers={hasUsers} />
+      <LicenseBanner licenseStatus={licenseStatus} />
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register onRegistered={() => setHasUsers(true)} />} />
-      <Route path="/setup" element={<Setup onComplete={() => setIsConfigured(true)} />} />
+      <Route path="/setup" element={<Setup onComplete={() => { setIsConfigured(true); setHasUsers(true); }} />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<DefaultRedirect />} />
         <Route path="dashboard" element={<PermRoute perms={['Sales','Stock','GRN','SIV','Accounting','Suppliers','Customers','Reports']}><Dashboard /></PermRoute>} />
