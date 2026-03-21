@@ -312,9 +312,6 @@ const ItemDetails = () => {
             <FiUpload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
           </button>
           <input ref={csvInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
-          <button onClick={handleDeleteAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(220,38,38,0.3)' }}>
-            <FiAlertTriangle size={14} /> Delete All
-          </button>
           <button
             onClick={() => setShowPrintPreview(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151', transition: 'all 0.15s' }}
