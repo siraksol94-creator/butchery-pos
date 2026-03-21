@@ -13,7 +13,7 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
   const navigate = useNavigate();
   const { loginWithToken } = useAuth();
 
-  // 'choose' | 'newBranch' | 'createAdmin' | 'joinBranch' | 'joinLogin'
+  // 'choose' | 'newBranch' | 'createAdmin' | 'joinBranch' | 'joinSyncing'
   const [mode, setMode] = useState(startAtCreateAdmin ? 'createAdmin' : 'choose');
 
   // New Branch Step 1
@@ -31,11 +31,6 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
   // Join Branch
   const [branchCode, setBranchCode]         = useState('');
   const [joinLicenseKey, setJoinLicenseKey] = useState('');
-
-  // Join Login
-  const [loginEmail, setLoginEmail]       = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [syncingAccount, setSyncingAccount] = useState(false);
 
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
@@ -134,37 +129,16 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ tenantId: data.tenantId, branchId: data.branchId }),
       });
-      // Trigger background sync to pull users from VPS
-      setSyncingAccount(true);
+      // Trigger force-resync to pull all branch data (including users) from VPS
       fetch('/api/sync/force-resync', { method: 'POST' }).catch(() => {});
-      setTimeout(() => setSyncingAccount(false), 4000);
-      setMode('joinLogin');
+      setMode('joinSyncing');
+      // Give sync service time to pull data, then go to normal login page
+      setTimeout(() => {
+        onComplete();
+        navigate('/login');
+      }, 6000);
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Join Login ────────────────────────────────────────────────────────────
-  const handleJoinLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const r = await fetch('/api/auth/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Invalid credentials');
-      loginWithToken(data.token, data.user);
-      onComplete();
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -392,45 +366,28 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
     );
   }
 
-  // ── Join Login ────────────────────────────────────────────────────────────
-  return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        {logo}
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 16px', marginBottom: 24, fontSize: 13, color: '#15803d' }}>
-          ✅ Branch joined successfully. Log in with your existing account.
+  // ── Join Syncing ──────────────────────────────────────────────────────────
+  if (mode === 'joinSyncing') {
+    return (
+      <div style={pageStyle}>
+        <div style={{ ...cardStyle, textAlign: 'center' }}>
+          {logo}
+          <div style={{ fontSize: 40, marginBottom: 20 }}>⏳</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 10 }}>Syncing Branch Data</h2>
+          <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
+            Please wait while your branch data is being downloaded from the cloud.<br />
+            You will be taken to the login screen automatically.
+          </p>
+          <div style={{ width: '100%', height: 6, background: '#f3f4f6', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: '#dc2626', borderRadius: 99, animation: 'progress 6s linear forwards' }} />
+          </div>
+          <style>{`@keyframes progress { from { width: 0% } to { width: 100% } }`}</style>
         </div>
-        {syncingAccount && (
-          <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#92400e' }}>
-            ⏳ Syncing your account from the cloud... please wait a moment before logging in.
-          </div>
-        )}
-        <form onSubmit={handleJoinLogin}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Email</label>
-            <input type="email" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} />
-          </div>
-          <div style={{ marginBottom: 24 }}>
-            <label style={labelStyle}>Password</label>
-            <input type="password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Your password" style={inputStyle} />
-          </div>
-          {error && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#dc2626' }}>
-              {error}
-              {error.includes('Invalid credentials') && (
-                <div style={{ marginTop: 6, fontSize: 12, color: '#7f1d1d' }}>
-                  If you just joined, your account may still be syncing. Wait a few seconds and try again.
-                </div>
-              )}
-            </div>
-          )}
-          <button type="submit" disabled={loading || syncingAccount} style={primaryBtn(loading || syncingAccount)}>
-            {loading ? 'Logging in...' : syncingAccount ? 'Syncing...' : 'Login'}
-          </button>
-        </form>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 };
 
 export default Setup;

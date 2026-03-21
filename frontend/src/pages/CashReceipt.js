@@ -110,42 +110,64 @@ const CashReceipt = () => {
   const fmt2 = (v) => parseFloat(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handlePrint = () => {
-    const dateLabel = filterFrom === filterTo && filterFrom
-      ? formatDate(filterFrom)
-      : filterFrom || filterTo
-        ? `${filterFrom ? formatDate(filterFrom) : 'Start'} – ${filterTo ? formatDate(filterTo) : 'End'}`
-        : 'All Dates';
-    const rows = filteredReceipts.map(r => `
+    const bizName = businessInfo.business_name || 'Business Name';
+    const printedAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const dateLabel = filterFrom && filterTo && filterFrom !== filterTo
+      ? `${formatDate(filterFrom)} — ${formatDate(filterTo)}`
+      : filterFrom ? formatDate(filterFrom) : 'All Dates';
+    const rows = filteredReceipts.map((r, i) => `
       <tr>
-        <td>${r.receipt_number}</td>
+        <td style="text-align:center;color:#6b7280">${i + 1}</td>
+        <td style="color:#16a34a;font-weight:600">${r.receipt_number}</td>
         <td>${formatDate(r.date)}</td>
-        <td>${r.received_from}</td>
-        <td>${r.description || '—'}</td>
+        <td style="font-weight:600">${r.received_from}</td>
+        <td style="color:#6b7280">${r.description || '—'}</td>
         <td>${r.payment_method}</td>
-        <td style="text-align:right;font-weight:600">$${fmt2(r.amount)}</td>
+        <td style="text-align:right;font-weight:700;color:#16a34a">$${fmt2(r.amount)}</td>
       </tr>`).join('');
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
+      @page{size:A4 portrait;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
       body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
-      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
-      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
-      .sub{font-size:11px;color:#6b7280;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-top:4px}
-      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
-      td{border:1px solid #e5e7eb;padding:7px 10px}
-      .tot{font-weight:bold;background:#f0fdf4}
-      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
+      .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #15803d;margin-bottom:16px}
+      .hdr-left .biz{font-size:20px;font-weight:900;color:#15803d;letter-spacing:0.3px}
+      .hdr-left .sub{font-size:10px;color:#6b7280;margin-top:4px}
+      .hdr-right{text-align:right}
+      .hdr-right .title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#6b7280;margin-bottom:4px}
+      .hdr-right .dates{font-size:13px;font-weight:700;color:#15803d}
+      .hdr-right .printed{font-size:9px;color:#9ca3af;margin-top:3px}
+      .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+      .stat{border:1.5px solid #d1d5db;border-radius:6px;padding:8px 12px}
+      .stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:3px}
+      .stat-val{font-size:13px;font-weight:800}
+      table{width:100%;border-collapse:collapse;font-size:10.5px}
+      th{border:1px solid #d1d5db;padding:7px 9px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.5px}
+      td{border:1px solid #e5e7eb;padding:6px 9px}
+      .tot-row td{font-weight:700;border-top:2px solid #15803d}
+      .ft{margin-top:16px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af}
     </style></head><body>
       <div class="hdr">
-        <div class="biz">${businessInfo.business_name || 'Business'}</div>
-        <div class="sub">Cash Receipts — ${dateLabel}</div>
+        <div class="hdr-left">
+          <div class="biz">${bizName}</div>
+          <div class="sub">Cash Receipts</div>
+        </div>
+        <div class="hdr-right">
+          <div class="title">Cash Receipt (CR)</div>
+          <div class="dates">${dateLabel}</div>
+          <div class="printed">Printed: ${printedAt}</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-lbl">Period From</div><div class="stat-val">${filterFrom ? formatDate(filterFrom) : '—'}</div></div>
+        <div class="stat"><div class="stat-lbl">Period To</div><div class="stat-val">${filterTo ? formatDate(filterTo) : '—'}</div></div>
+        <div class="stat"><div class="stat-lbl">Total Receipts</div><div class="stat-val">${filteredReceipts.length}</div></div>
+        <div class="stat"><div class="stat-lbl">Total Amount</div><div class="stat-val" style="color:#15803d">$${fmt2(filteredTotal)}</div></div>
       </div>
       <table>
-        <thead><tr><th>Receipt No.</th><th>Date</th><th>Received From</th><th>Description</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead>
+        <thead><tr><th>#</th><th>Receipt No.</th><th>Date</th><th>Received From</th><th>Description</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr class="tot"><td colspan="5" style="text-align:right">Total (${filteredReceipts.length} receipts)</td><td style="text-align:right">$${fmt2(filteredTotal)}</td></tr></tfoot>
+        <tfoot><tr class="tot-row"><td colspan="6" style="text-align:right">TOTAL — ${filteredReceipts.length} Receipt${filteredReceipts.length !== 1 ? 's' : ''}</td><td style="text-align:right;color:#15803d">$${fmt2(filteredTotal)}</td></tr></tfoot>
       </table>
-      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="ft"><span>${bizName} — Confidential</span><span>Printed: ${printedAt}</span></div>
     </body></html>`;
     const w = window.open('', '_blank');
     w.document.write(html); w.document.close(); w.focus();

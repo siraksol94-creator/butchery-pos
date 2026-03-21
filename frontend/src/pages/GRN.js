@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN } from '../services/api';
+import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN, createApPayment } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { FiPlus, FiFileText, FiCalendar, FiUsers, FiClock, FiX, FiTrash2, FiPrinter, FiSearch, FiChevronDown, FiChevronUp, FiPackage, FiEdit2, FiEye } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiCalendar, FiUsers, FiClock, FiX, FiTrash2, FiPrinter, FiSearch, FiChevronDown, FiChevronUp, FiPackage, FiEdit2, FiEye, FiDollarSign } from 'react-icons/fi';
 
 const defaultStats = { totalGRNs: 0, thisMonth: 0, suppliers: 0, pending: 0 };
 const emptyItem = () => ({ product_id: '', product_text: '', quantity: '', unit_price: '' });
@@ -64,6 +64,12 @@ const GRN = () => {
   // ── Product autocomplete ──────────────────────────────────────────
   const [openDropdownIdx, setOpenDropdownIdx] = useState(-1);
   const [dropdownRect, setDropdownRect] = useState(null);
+
+  // ── GRN Pay modal ─────────────────────────────────────────────────
+  const [grnPayModal, setGrnPayModal]   = useState(null);
+  const [payForm, setPayForm]           = useState({ amount: '', date: '', description: '', paid_from: 'Main Cashier' });
+  const [paySaving, setPaySaving]       = useState(false);
+  const [payError, setPayError]         = useState('');
 
   // ── Quick-add supplier ────────────────────────────────────────────
   const [showAddSupplier, setShowAddSupplier]   = useState(false);
@@ -153,6 +159,39 @@ const GRN = () => {
       alert('Failed to load GRN details.');
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const openGrnPayModal = (grn) => {
+    setPayForm({
+      amount: parseFloat(grn.total_amount) > 0 ? parseFloat(grn.total_amount).toFixed(2) : '',
+      date: new Date().toISOString().split('T')[0],
+      description: `Payment for GRN ${grn.grn_number}`,
+      paid_from: 'Main Cashier',
+    });
+    setPayError('');
+    setGrnPayModal(grn);
+  };
+
+  const handleGrnPay = async () => {
+    if (!payForm.amount || parseFloat(payForm.amount) <= 0) { setPayError('Enter a valid amount.'); return; }
+    if (!payForm.date) { setPayError('Select a date.'); return; }
+    setPaySaving(true);
+    try {
+      await createApPayment({
+        supplier_id: grnPayModal.supplier_id,
+        supplier_name: grnPayModal.supplier_name,
+        amount: parseFloat(payForm.amount),
+        date: payForm.date,
+        description: payForm.description,
+        paid_from: payForm.paid_from,
+      });
+      setGrnPayModal(null);
+      fetchData();
+    } catch (err) {
+      setPayError(err.response?.data?.error || 'Failed to record payment.');
+    } finally {
+      setPaySaving(false);
     }
   };
 
@@ -406,6 +445,21 @@ const GRN = () => {
                       >
                         <FiEdit2 size={13} />
                       </button>
+                      {grn.payment_status !== 'Paid' && (
+                        <button
+                          onClick={() => openGrnPayModal(grn)}
+                          title="Record Payment"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '5px 11px', borderRadius: 6, border: '1px solid #86efac',
+                            background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', transition: 'all 0.15s', fontSize: 12, fontWeight: 600,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.color = '#fff'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = '#16a34a'; }}
+                        >
+                          <FiDollarSign size={12} /> Pay
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -414,6 +468,74 @@ const GRN = () => {
           </table>
         )}
       </div>
+
+      {/* ── GRN Payment Modal ─────────────────────────────────────── */}
+      {grnPayModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Record Payment</h2>
+              <button onClick={() => setGrnPayModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><FiX size={20} /></button>
+            </div>
+
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
+              <div style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>{grnPayModal.supplier_name}</div>
+              <div style={{ fontSize: 12, color: '#15803d', marginTop: 2 }}>GRN: {grnPayModal.grn_number} — Total: ${parseFloat(grnPayModal.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Amount ($) *</label>
+                <input
+                  type="number"
+                  value={payForm.amount}
+                  onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Date *</label>
+                <input
+                  type="date"
+                  value={payForm.date}
+                  onChange={e => setPayForm(f => ({ ...f, date: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Paid From</label>
+                <input
+                  type="text"
+                  value={payForm.paid_from}
+                  onChange={e => setPayForm(f => ({ ...f, paid_from: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Description</label>
+                <input
+                  type="text"
+                  value={payForm.description}
+                  onChange={e => setPayForm(f => ({ ...f, description: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            {payError && <div style={{ marginTop: 12, color: '#dc2626', fontSize: 13 }}>{payError}</div>}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setGrnPayModal(null)} style={{ flex: 1, padding: '10px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>
+                Cancel
+              </button>
+              <button onClick={handleGrnPay} disabled={paySaving} style={{ flex: 1, padding: '10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                {paySaving ? 'Saving...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Product Received Breakdown ────────────────────────────── */}
       <div style={{ marginTop: 20, border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>

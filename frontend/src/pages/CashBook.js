@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getCashBook, getCashBookStats, setOpeningBalance } from '../services/api';
+import { getCashBook, getCashBookStats, setOpeningBalance, getSettings } from '../services/api';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter, FiFilter } from 'react-icons/fi';
 const CashBook = () => {
   const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPV: 0, totalAP: 0, totalPayments: 0, currentBalance: 0 });
   const [entries, setEntries] = useState([]);
+  const [businessInfo, setBusinessInfo] = useState({});
   const [openingBal, setOpeningBal] = useState(0);
   const [editingOB, setEditingOB] = useState(false);
   const [obInput, setObInput] = useState('');
@@ -28,7 +29,10 @@ const CashBook = () => {
     } catch (err) { /* use defaults */ }
   };
 
-  useEffect(() => { fetchData(todayStr, todayStr); }, []); // eslint-disable-line
+  useEffect(() => {
+    fetchData(todayStr, todayStr);
+    getSettings().then(r => setBusinessInfo(r.data?.business || {})).catch(() => {});
+  }, []); // eslint-disable-line
 
   const handleFilter = () => fetchData(from, to);
   const handleClearFilter = () => { setFrom(''); setTo(''); fetchData('', ''); };
@@ -52,58 +56,70 @@ const CashBook = () => {
 
   const handlePrint = () => {
     const fmt = (v) => parseFloat(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const dateLabel = from === to && from
-      ? formatDate(from)
-      : from || to
-        ? `${from ? formatDate(from) : 'Start'} – ${to ? formatDate(to) : 'End'}`
-        : 'All Dates';
-    const obRow = `<tr style="background:#f0f9ff"><td>—</td><td><b>Opening Balance</b></td><td>OB</td><td></td><td style="text-align:right;color:#2563eb;font-weight:600">$${fmt(openingBal)}</td><td></td><td style="text-align:right;font-weight:600">$${fmt(openingBal)}</td></tr>`;
+    const bizName = businessInfo.business_name || 'Business Name';
+    const printedAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const dateLabel = from && to && from !== to ? `${formatDate(from)} — ${formatDate(to)}` : from ? formatDate(from) : 'All Dates';
+    const profit = (stats.totalReceipts || 0) - (stats.totalPV || 0) - (stats.totalAP || 0);
+    const obRow = `<tr><td>—</td><td><b>Opening Balance</b></td><td></td><td style="text-align:center">OB</td><td style="text-align:right;font-weight:600;color:#2563eb">$${fmt(openingBal)}</td><td></td><td style="text-align:right;font-weight:600">$${fmt(openingBal)}</td></tr>`;
     const rows = entries.map(e => {
       const isAP = e.type === 'AP';
-      return `<tr style="${isAP ? 'background:#faf5ff' : ''}">
+      const isPV = e.type === 'PV';
+      const typeColor = isAP ? '#7c3aed' : isPV ? '#dc2626' : '#16a34a';
+      return `<tr>
         <td>${formatDate(e.date)}</td>
         <td>${e.description || ''}</td>
-        <td style="color:#9ca3af;font-size:10px">${e.reference || ''}</td>
-        <td style="text-align:center"><span style="padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700;background:${isAP ? '#ede9fe' : '#fee2e2'};color:${isAP ? '#7c3aed' : '#dc2626'}">${e.type}</span></td>
+        <td style="font-size:10px;color:#6b7280">${e.reference || ''}</td>
+        <td style="text-align:center;font-weight:700;color:${typeColor}">${e.type}</td>
         <td style="text-align:right;color:#16a34a;font-weight:500">${parseFloat(e.receipt_amount) > 0 ? '$' + fmt(e.receipt_amount) : ''}</td>
-        <td style="text-align:right;color:${isAP ? '#7c3aed' : '#dc2626'};font-weight:500">${parseFloat(e.payment_amount) > 0 ? '$' + fmt(e.payment_amount) : ''}</td>
+        <td style="text-align:right;color:#dc2626;font-weight:500">${parseFloat(e.payment_amount) > 0 ? '$' + fmt(e.payment_amount) : ''}</td>
         <td style="text-align:right;font-weight:600">$${fmt(e.balance)}</td>
       </tr>`;
     }).join('');
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box;margin:0;padding:0}
+      @page{size:A4 portrait;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
       body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
-      .hdr{text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #374151}
-      .biz{font-size:20px;font-weight:bold;margin-bottom:3px}
-      .sub{font-size:11px;color:#6b7280}
-      .stats{display:flex;gap:16px;margin-bottom:14px}
-      .stat{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px}
-      .stat-lbl{color:#6b7280;font-size:10px;margin-bottom:2px}
-      .stat-val{font-weight:bold;font-size:13px}
-      table{width:100%;border-collapse:collapse}
-      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold;font-size:11px}
-      td{border:1px solid #e5e7eb;padding:7px 10px;font-size:11px}
-      .tot-row{font-weight:bold;background:#f9fafb}
-      .ft{margin-top:16px;font-size:9px;color:#9ca3af;text-align:center}
+      .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #1e3a5f;margin-bottom:16px}
+      .hdr-left .biz{font-size:20px;font-weight:900;color:#1e3a5f;letter-spacing:0.3px}
+      .hdr-left .sub{font-size:10px;color:#6b7280;margin-top:4px}
+      .hdr-right{text-align:right}
+      .hdr-right .title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#6b7280;margin-bottom:4px}
+      .hdr-right .dates{font-size:13px;font-weight:700;color:#1e3a5f}
+      .hdr-right .printed{font-size:9px;color:#9ca3af;margin-top:3px}
+      .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+      .stat{border:1.5px solid #d1d5db;border-radius:6px;padding:8px 12px}
+      .stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:3px}
+      .stat-val{font-size:13px;font-weight:800}
+      table{width:100%;border-collapse:collapse;font-size:10.5px}
+      th{border:1px solid #d1d5db;padding:7px 9px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.5px}
+      td{border:1px solid #e5e7eb;padding:6px 9px}
+      .tot-row td{font-weight:700;border-top:2px solid #1e3a5f}
+      .ft{margin-top:16px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af}
     </style></head><body>
       <div class="hdr">
-        <div class="biz">Cash Book</div>
-        <div class="sub">${dateLabel}</div>
+        <div class="hdr-left">
+          <div class="biz">${bizName}</div>
+          <div class="sub">Cash Book Report</div>
+        </div>
+        <div class="hdr-right">
+          <div class="title">Cash Book</div>
+          <div class="dates">${dateLabel}</div>
+          <div class="printed">Printed: ${printedAt}</div>
+        </div>
       </div>
       <div class="stats">
-        <div class="stat"><div class="stat-lbl">Opening Balance</div><div class="stat-val">$${fmt(openingBal)}</div></div>
+        <div class="stat"><div class="stat-lbl">Opening Balance</div><div class="stat-val" style="color:#2563eb">$${fmt(openingBal)}</div></div>
         <div class="stat"><div class="stat-lbl">Total Receipts (CR)</div><div class="stat-val" style="color:#16a34a">$${fmt(stats.totalReceipts)}</div></div>
-        <div class="stat"><div class="stat-lbl">Total PV</div><div class="stat-val" style="color:#dc2626">$${fmt(stats.totalPV)}</div></div>
+        <div class="stat"><div class="stat-lbl">Total Payments (PV)</div><div class="stat-val" style="color:#dc2626">$${fmt(stats.totalPV)}</div></div>
         <div class="stat"><div class="stat-lbl">Total AP (COGS)</div><div class="stat-val" style="color:#7c3aed">$${fmt(stats.totalAP)}</div></div>
-        <div class="stat"><div class="stat-lbl">Profit</div><div class="stat-val" style="color:${stats.totalReceipts - (stats.totalPV||0) - (stats.totalAP||0) >= 0 ? '#16a34a' : '#dc2626'}">$${fmt(stats.totalReceipts - (stats.totalPV||0) - (stats.totalAP||0))}</div></div>
+        <div class="stat"><div class="stat-lbl">Profit</div><div class="stat-val" style="color:${profit >= 0 ? '#16a34a' : '#dc2626'}">$${fmt(profit)}</div></div>
         <div class="stat"><div class="stat-lbl">Current Balance</div><div class="stat-val">$${fmt(stats.currentBalance)}</div></div>
       </div>
       <table>
         <thead><tr><th>Date</th><th>Description</th><th>Reference</th><th style="text-align:center">Type</th><th style="text-align:right">Receipts</th><th style="text-align:right">Payments</th><th style="text-align:right">Balance</th></tr></thead>
         <tbody>${obRow}${rows}</tbody>
-        <tfoot><tr class="tot-row"><td colspan="4" style="text-align:right">TOTALS:</td><td style="text-align:right;color:#16a34a">$${fmt(totals.receipts)}</td><td style="text-align:right;color:#dc2626">$${fmt(totals.payments)}</td><td style="text-align:right">$${fmt(stats.currentBalance)}</td></tr></tfoot>
+        <tfoot><tr class="tot-row"><td colspan="4" style="text-align:right">TOTALS</td><td style="text-align:right;color:#16a34a">$${fmt(totals.receipts)}</td><td style="text-align:right;color:#dc2626">$${fmt(totals.payments)}</td><td style="text-align:right">$${fmt(stats.currentBalance)}</td></tr></tfoot>
       </table>
-      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="ft"><span>${bizName} — Confidential</span><span>Printed: ${printedAt}</span></div>
     </body></html>`;
     const w = window.open('', '_blank');
     w.document.write(html); w.document.close(); w.focus();

@@ -133,6 +133,16 @@ const SalesInventory = () => {
   };
 
   const handleSave = async () => {
+    // Block save if any visible unsaved/unlocked row has no actual balance filled
+    const missingRows = filtered.filter(p => {
+      if (savedRows[p.id] && !editingRows[p.id]) return false; // already locked
+      return actualBalances[p.id] === '' || actualBalances[p.id] === undefined;
+    });
+    if (missingRows.length > 0) {
+      showToast(`Fill in actual balance for all ${missingRows.length} remaining product${missingRows.length > 1 ? 's' : ''} (enter 0 if empty).`, 'error');
+      return;
+    }
+
     const entries = Object.keys(actualBalances)
       .filter(id => {
         if (actualBalances[id] === '' || actualBalances[id] === undefined) return false;
@@ -437,7 +447,7 @@ const SalesInventory = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(product => {
+                {filtered.map((product, rowIndex) => {
                   const r = computeRow(product);
                   const locked = isLocked(product.id);
                   const hasActual = actualBalances[product.id] !== undefined && actualBalances[product.id] !== '';
@@ -486,6 +496,7 @@ const SalesInventory = () => {
                         ) : (
                           <input
                             type="number" step="0.01" min="0"
+                            data-actualindex={rowIndex}
                             value={actualBalances[product.id] ?? ''}
                             onChange={e => {
                               const val = e.target.value;
@@ -498,6 +509,14 @@ const SalesInventory = () => {
                                 if (!currentReason || currentReason === 'Weight Loss' || currentReason === 'Overage') {
                                   setReasons(prev => ({ ...prev, [product.id]: autoReason }));
                                 }
+                              }
+                            }}
+                            onWheel={e => e.target.blur()}
+                            onKeyDown={e => {
+                              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const target = document.querySelector(`[data-actualindex="${rowIndex + (e.key === 'ArrowDown' ? 1 : -1)}"]`);
+                                if (target) target.focus();
                               }
                             }}
                             style={{
