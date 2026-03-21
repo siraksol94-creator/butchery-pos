@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getInventory, createOrder, getSettings, openCashDrawer } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { FiSearch, FiShoppingCart, FiX, FiDollarSign, FiUnlock } from 'react-icons/fi';
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 const getCategoryClass = () => 'badge-gray';
 
 const POS = () => {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
@@ -325,7 +327,7 @@ const POS = () => {
     }
   };
 
-  const printThermalReceipt = (data, bName, bPhone) => {
+  const printThermalReceipt = (data, bName, bPhone, servedBy) => {
     const div42eq = '='.repeat(42);
     const div42da = '-'.repeat(42);
 
@@ -382,6 +384,7 @@ const POS = () => {
     <tr><td>Receipt #:</td><td></td><td style="text-align:right;">${data.orderNumber}</td></tr>
     <tr><td>Date &amp; Time:</td><td></td><td style="text-align:right;">${data.date.toLocaleDateString('en-GB')} ${data.date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td></tr>
     <tr><td>Customer:</td><td></td><td style="text-align:right;">${data.customerName || 'Walk-in'}</td></tr>
+    <tr><td>Served by:</td><td></td><td style="text-align:right;">${servedBy}</td></tr>
   </table>
   <div class="divider">${div42eq}</div>
 
@@ -726,7 +729,7 @@ const POS = () => {
           onKeyDown={e => {
             if (e.key === 'Enter') {
               if (showChangeBanner) { setShowChangeBanner(false); setShowReceipt(false); }
-              else { printThermalReceipt(receiptData, businessName, businessPhone); setShowChangeBanner(true); }
+              else { printThermalReceipt(receiptData, businessName, businessPhone, `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Staff'); setShowChangeBanner(true); }
             }
           }}
           tabIndex={0}
@@ -839,7 +842,7 @@ const POS = () => {
                   style={{ padding: '10px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>
                   Close
                 </button>
-                <button onClick={() => { printThermalReceipt(receiptData, businessName, businessPhone); setShowChangeBanner(true); }}
+                <button onClick={() => { printThermalReceipt(receiptData, businessName, businessPhone, `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Staff'); setShowChangeBanner(true); }}
                   style={{ padding: '10px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                   🖨 Print Receipt
                 </button>

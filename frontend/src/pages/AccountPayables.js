@@ -11,6 +11,7 @@ const AccountPayables = () => {
   const [stats, setStats] = useState({ totalPurchases: 0, totalPaid: 0, outstanding: 0, suppliers: 0, unpaidCount: 0 });
   const [payables, setPayables] = useState([]);
   const [businessInfo, setBusinessInfo] = useState({});
+  const [showListPrint, setShowListPrint] = useState(false);
   const [payModal, setPayModal] = useState(null);
   const [form, setForm] = useState({ amount: '', date: '', description: '', paid_from: 'Main Cashier' });
   const [saving, setSaving] = useState(false);
@@ -102,69 +103,7 @@ const AccountPayables = () => {
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
-  const handlePrint = () => {
-    const fmt = (v) => parseFloat(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const bizName = businessInfo.business_name || 'Business Name';
-    const printedAt = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const rows = payables.map((p, i) => `
-      <tr>
-        <td style="text-align:center;color:#6b7280">${i + 1}</td>
-        <td style="font-weight:600">${p.supplier_name}</td>
-        <td style="color:#6b7280">${p.phone || '—'}</td>
-        <td style="text-align:center">${p.grn_count}</td>
-        <td style="text-align:right">K${fmt(p.total_purchases)}</td>
-        <td style="text-align:right;color:#16a34a;font-weight:600">K${fmt(p.total_paid)}</td>
-        <td style="text-align:right;color:${parseFloat(p.balance) > 0 ? '#dc2626' : '#16a34a'};font-weight:700">K${fmt(p.balance)}</td>
-        <td>${p.status}</td>
-      </tr>`).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page{size:A4 portrait;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
-      .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #991b1b;margin-bottom:16px}
-      .hdr-left .biz{font-size:20px;font-weight:900;color:#991b1b;letter-spacing:0.3px}
-      .hdr-left .sub{font-size:10px;color:#6b7280;margin-top:4px}
-      .hdr-right{text-align:right}
-      .hdr-right .title{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#6b7280;margin-bottom:4px}
-      .hdr-right .dates{font-size:13px;font-weight:700;color:#991b1b}
-      .hdr-right .printed{font-size:9px;color:#9ca3af;margin-top:3px}
-      .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-      .stat{border:1.5px solid #d1d5db;border-radius:6px;padding:8px 12px}
-      .stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:3px}
-      .stat-val{font-size:13px;font-weight:800}
-      table{width:100%;border-collapse:collapse;font-size:10.5px}
-      th{border:1px solid #d1d5db;padding:7px 9px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.5px}
-      td{border:1px solid #e5e7eb;padding:6px 9px}
-      .tot-row td{font-weight:700;border-top:2px solid #991b1b}
-      .ft{margin-top:16px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af}
-    </style></head><body>
-      <div class="hdr">
-        <div class="hdr-left">
-          <div class="biz">${bizName}</div>
-          <div class="sub">Supplier Ledger</div>
-        </div>
-        <div class="hdr-right">
-          <div class="title">Account Payables</div>
-          <div class="dates">As of ${printedAt}</div>
-          <div class="printed">Printed: ${printedAt}</div>
-        </div>
-      </div>
-      <div class="stats">
-        <div class="stat"><div class="stat-lbl">Total Purchases (GRN)</div><div class="stat-val">K${fmt(stats.totalPurchases)}</div></div>
-        <div class="stat"><div class="stat-lbl">Total Paid</div><div class="stat-val" style="color:#16a34a">K${fmt(stats.totalPaid)}</div></div>
-        <div class="stat"><div class="stat-lbl">Outstanding Balance</div><div class="stat-val" style="color:#dc2626">K${fmt(stats.outstanding)}</div></div>
-        <div class="stat"><div class="stat-lbl">Total Suppliers</div><div class="stat-val">${stats.suppliers}</div></div>
-      </div>
-      <table>
-        <thead><tr><th>#</th><th>Supplier</th><th>Phone</th><th style="text-align:center">GRNs</th><th style="text-align:right">Purchases</th><th style="text-align:right">Paid</th><th style="text-align:right">Balance</th><th>Status</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr class="tot-row"><td colspan="4" style="text-align:right">TOTALS</td><td style="text-align:right">K${fmt(stats.totalPurchases)}</td><td style="text-align:right;color:#16a34a">K${fmt(stats.totalPaid)}</td><td style="text-align:right;color:#dc2626">K${fmt(stats.outstanding)}</td><td></td></tr></tfoot>
-      </table>
-      <div class="ft"><span>${bizName} — Confidential</span><span>Printed: ${printedAt}</span></div>
-    </body></html>`;
-    const w = window.open('', '_blank');
-    w.document.write(html); w.document.close(); w.focus();
-    setTimeout(() => w.print(), 300);
-  };
+  const handlePrint = () => setShowListPrint(true);
 
   return (
     <div className="page-content">
@@ -432,6 +371,96 @@ const AccountPayables = () => {
               <button onClick={handlePay} disabled={saving} style={{ flex: 1, padding: '10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                 {saving ? 'Saving...' : 'Record Payment'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── AP List Print Overlay ───────────────────────────────────── */}
+      {showListPrint && (
+        <div className="pv-print-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto', paddingTop: 60, paddingBottom: 40 }}>
+          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 52, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 1001, borderBottom: '1px solid #1e293b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <FiPrinter size={16} style={{ color: '#64748b' }} />
+              <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>Print Preview — Account Payables ({payables.length} suppliers)</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => window.print()} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 20px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}><FiPrinter size={14} /> Print</button>
+              <button onClick={() => setShowListPrint(false)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}><FiX size={14} /> Close</button>
+            </div>
+          </div>
+
+          <div id="ap-list-document" style={{ width: 794, background: '#fff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}>
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>{businessInfo.business_name || 'Business Name'}</div>
+                <div style={{ fontSize: 11, opacity: 0.75 }}>{[businessInfo.business_address, businessInfo.business_phone].filter(Boolean).join('  |  ')}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.65, marginBottom: 6 }}>Account Payables</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>Supplier Ledger</div>
+                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>Printed: {new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </div>
+            {/* Rainbow divider */}
+            <div style={{ height: 4, background: 'linear-gradient(90deg, #f59e0b, #dc2626, #a855f7)' }} />
+
+            <div style={{ padding: '26px 44px 36px' }}>
+              {/* Stat chips */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: 'Total Purchases', value: 'K' + parseFloat(stats.totalPurchases).toLocaleString(undefined, { minimumFractionDigits: 2 }), bg: '#f8fafc', color: '#374151', border: '#e2e8f0' },
+                  { label: 'Total Paid',       value: 'K' + parseFloat(stats.totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 }),      bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                  { label: 'Outstanding',      value: 'K' + parseFloat(stats.outstanding).toLocaleString(undefined, { minimumFractionDigits: 2 }),    bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+                  { label: 'Suppliers',        value: stats.suppliers,                                                                                  bg: '#f8fafc', color: '#374151', border: '#e2e8f0' },
+                ].map(chip => (
+                  <div key={chip.label} style={{ padding: '12px 16px', borderRadius: 10, background: chip.bg, border: `1.5px solid ${chip.border}`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 9.5, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{chip.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: chip.color }}>{chip.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Table */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                  <thead>
+                    <tr style={{ background: '#fef2f2' }}>
+                      {['#', 'Supplier', 'Phone', 'GRNs', 'Purchases', 'Paid', 'Balance', 'Status'].map((h, i) => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontWeight: 600, color: '#dc2626', borderBottom: '1px solid #fecaca', fontSize: 10.5, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payables.map((p, idx) => (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
+                        <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 700 }}>{p.supplier_name}</td>
+                        <td style={{ padding: '8px 12px', color: '#6b7280' }}>{p.phone || '—'}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>{p.grn_count}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>K{parseFloat(p.total_purchases).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>K{parseFloat(p.total_paid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: parseFloat(p.balance) > 0 ? '#dc2626' : '#16a34a' }}>K{parseFloat(p.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '8px 12px', color: '#6b7280' }}>{p.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#fef2f2', borderTop: '2px solid #fca5a5' }}>
+                      <td colSpan={4} style={{ padding: '10px 12px', fontWeight: 700, fontSize: 11.5, color: '#dc2626' }}>TOTAL — {payables.length} Supplier{payables.length !== 1 ? 's' : ''}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>K{parseFloat(stats.totalPurchases).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>K{parseFloat(stats.totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#dc2626' }}>K{parseFloat(stats.outstanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>Printed: {new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
             </div>
           </div>
         </div>
