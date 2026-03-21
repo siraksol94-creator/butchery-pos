@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown, updateApPayment, getSettings } from '../services/api';
-import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter, FiEdit2, FiSave } from 'react-icons/fi';
+import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown, updateApPayment, deleteApPayment, getSettings } from '../services/api';
+import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter, FiEdit2, FiSave, FiTrash2 } from 'react-icons/fi';
 
 const getStatusBadge = (status) => {
   const map = { 'Paid': 'badge-green', 'Partial': 'badge-orange', 'Unpaid': 'badge-red', 'No Purchases': 'badge-gray' };
@@ -98,6 +98,18 @@ const AccountPayables = () => {
       setEditError(err.response?.data?.error || 'Failed to update payment.');
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId) => {
+    if (!window.confirm('Delete this payment? This cannot be undone.')) return;
+    try {
+      await deleteApPayment(paymentId);
+      const res = await getSupplierBreakdown(breakdown.supplier.id || breakdown.supplier.supplier_id);
+      setBreakdown(res.data);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete payment.');
     }
   };
 
@@ -270,10 +282,14 @@ const AccountPayables = () => {
                             <td style={{ padding: '7px 10px' }}>{formatDate(p.date)}</td>
                             <td style={{ padding: '7px 10px', color: '#6b7280' }}>{p.description || '—'}</td>
                             <td style={{ padding: '7px 10px', textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>K{parseFloat(p.amount).toLocaleString()}</td>
-                            <td style={{ padding: '7px 10px' }}>
+                            <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
                               <button onClick={() => { setEditingPayment({ id: p.id, amount: p.amount, date: p.date, description: p.description || '', paid_from: p.paid_from || '' }); setEditError(''); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', marginRight: 6 }}>
                                 <FiEdit2 size={13} />
+                              </button>
+                              <button onClick={() => handleDeletePayment(p.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
+                                <FiTrash2 size={13} />
                               </button>
                             </td>
                           </tr>

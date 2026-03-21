@@ -29,7 +29,7 @@ const SalesReport = () => {
   }, [fetchOrders]);
 
   const filtered = orders.filter(o => {
-    const od = new Date(o.created_at);
+    const od = new Date(o.created_at + 'Z');
     const orderLocalDate = `${od.getFullYear()}-${String(od.getMonth()+1).padStart(2,'0')}-${String(od.getDate()).padStart(2,'0')}`;
     if (dateFrom && orderLocalDate < dateFrom) return false;
     if (dateTo && orderLocalDate > dateTo) return false;
@@ -80,7 +80,7 @@ const SalesReport = () => {
     }
   };
 
-  const formatDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatDate = (d) => new Date(d + 'Z').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const printDirect = (html) => {
     const w = window.open('', '_blank', 'width=420,height=600');
@@ -120,8 +120,8 @@ const SalesReport = () => {
     <div class="div">${div}</div>
     <table>
       <tr><td>Receipt #:</td><td></td><td style="text-align:right" colspan="2">${order.order_number}</td></tr>
-      <tr><td>Date:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at).toLocaleDateString('en-GB')}</td></tr>
-      <tr><td>Time:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td></tr>
+      <tr><td>Date:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at + 'Z').toLocaleDateString('en-GB')}</td></tr>
+      <tr><td>Time:</td><td></td><td style="text-align:right" colspan="2">${new Date(order.created_at + 'Z').toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td></tr>
       <tr><td>Customer:</td><td></td><td style="text-align:right" colspan="2">${order.customer_name || 'Walk-in'}</td></tr>
       <tr><td>Payment:</td><td></td><td style="text-align:right" colspan="2">${order.payment_method || ''}</td></tr>
     </table>
@@ -580,8 +580,8 @@ const SalesReport = () => {
                   <div style={{ fontSize: 12, marginBottom: 12 }}>
                     {[
                       ['Receipt #', viewOrder.order_number],
-                      ['Date',      new Date(viewOrder.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })],
-                      ['Time',      new Date(viewOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })],
+                      ['Date',      new Date(viewOrder.created_at + 'Z').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })],
+                      ['Time',      new Date(viewOrder.created_at + 'Z').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })],
                       ['Customer',  viewOrder.customer_name || 'Walk-in'],
                       ['Payment',   viewOrder.payment_method],
                     ].map(([label, value]) => (

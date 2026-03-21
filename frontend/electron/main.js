@@ -44,8 +44,22 @@ ipcMain.handle('check-for-updates', () => {
   return { error: 'Auto-updater not available' };
 });
 
+// Fetch printer name from local backend
+function getDrawerPort() {
+  return new Promise((resolve) => {
+    http.get('http://localhost:5000/api/settings/drawer-port', (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data).port || 'POS-80'); } catch { resolve('POS-80'); }
+      });
+    }).on('error', () => resolve('POS-80'));
+  });
+}
+
 // IPC: silent print (Promise-based API required for Electron 28+)
-ipcMain.handle('print-silent', (_event, html) => {
+ipcMain.handle('print-silent', async (_event, html) => {
+  const printerName = await getDrawerPort();
   return new Promise((resolve) => {
     // Write HTML to a temp file — more reliable than data: URLs for large content
     const tmpFile = path.join(os.tmpdir(), 'butchery-print-' + Date.now() + '.html');
@@ -59,7 +73,7 @@ ipcMain.handle('print-silent', (_event, html) => {
     win.webContents.once('did-finish-load', () => {
       const cleanup = () => { try { fs.unlinkSync(tmpFile); } catch (_) {} };
       win.webContents.print(
-        { silent: true, printBackground: true, deviceName: 'POS-80' },
+        { silent: true, printBackground: true, deviceName: printerName },
         (success, failureReason) => {
           win.close();
           cleanup();

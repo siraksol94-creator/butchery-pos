@@ -491,7 +491,7 @@ const SIV = () => {
                                   </thead>
                                   <tbody>
                                     {breakdown.map((b, i) => {
-                                      const dt = new Date(b.created_at);
+                                      const dt = new Date(b.created_at + 'Z');
                                       return (
                                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                           <td style={{ padding: '4px 8px', fontWeight: 500, color: '#1d4ed8' }}>{b.siv_number}</td>

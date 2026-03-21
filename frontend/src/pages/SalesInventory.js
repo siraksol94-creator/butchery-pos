@@ -636,7 +636,7 @@ const SalesInventory = () => {
                                   <tr key={i}>
                                     <td style={{ padding: '2px 14px 2px 0', color: '#2563eb', fontWeight: 600 }}>{row.siv_number}</td>
                                     <td style={{ padding: '2px 14px 2px 0', color: '#374151' }}>{row.department}</td>
-                                    <td style={{ padding: '2px 14px 2px 0', color: '#6b7280' }}>{new Date(row.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td style={{ padding: '2px 14px 2px 0', color: '#6b7280' }}>{new Date(row.created_at + 'Z').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
                                     <td style={{ padding: '2px 0', textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>{parseFloat(row.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                   </tr>
                                 ))}
