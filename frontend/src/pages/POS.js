@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getInventory, createOrder, getSettings, openCashDrawer } from '../services/api';
+import { getInventory, createOrder, getSettings, openCashDrawer, printReceipt } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FiSearch, FiShoppingCart, FiX, FiDollarSign, FiUnlock } from 'react-icons/fi';
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
@@ -271,10 +271,6 @@ const POS = () => {
   const change = Math.max(0, parseFloat(amountReceived || 0) - total);
 
   const printDirect = (html) => {
-    if (window.electronAPI?.printSilent) {
-      window.electronAPI.printSilent(html);
-      return;
-    }
     const w = window.open('', '_blank', 'width=320,height=600');
     if (!w) return;
     w.document.write(html);
@@ -331,7 +327,31 @@ const POS = () => {
     }
   };
 
-  const printThermalReceipt = (data, bName, bPhone, servedBy) => {
+  const printThermalReceipt = async (data, bName, bPhone, servedBy) => {
+    // Try ESC/POS via backend first (no dialog, same as Open Drawer)
+    try {
+      const now = data.date instanceof Date ? data.date : new Date(data.date);
+      await printReceipt({
+        businessName: bName,
+        businessPhone: bPhone,
+        orderNumber: data.orderNumber,
+        date: now.toLocaleDateString('en-GB'),
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        customerName: data.customerName,
+        servedBy,
+        items: data.items,
+        subtotal: data.subtotal,
+        discount: data.discount,
+        total: data.total,
+        amountReceived: data.amountReceived,
+        change: data.change,
+      });
+      return;
+    } catch (e) {
+      // fallback to window.open below
+    }
+
+    const printThermalReceiptFallback = (data, bName, bPhone, servedBy) => {
     const div42eq = '='.repeat(42);
     const div42da = '-'.repeat(42);
 
@@ -425,7 +445,9 @@ const POS = () => {
 </body>
 </html>`;
 
-    printDirect(html);
+      printDirect(html);
+    };
+    printThermalReceiptFallback(data, bName, bPhone, servedBy);
   };
 
   const now = new Date();
