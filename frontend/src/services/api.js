@@ -163,6 +163,7 @@ export const getDrawerPort = () => api.get('/settings/drawer-port');
 export const updateDrawerPort = (port) => api.put('/settings/drawer-port', { port });
 export const openCashDrawer = () => api.post('/settings/open-drawer');
 export const printReceipt = (data) => api.post('/settings/print-receipt', data);
+export const printReport = (data) => api.post('/settings/print-report', data);
 
 // Production
 export const getProductions = () => api.get('/production');

@@ -276,4 +276,124 @@ $bytes = [System.IO.File]::ReadAllBytes("${tmpBin.replace(/\\/g, '\\\\')}")
   }
 });
 
+// POST /api/settings/print-report — send ESC/POS sales report via Windows Print Spooler
+router.post('/print-report', (req, res) => {
+  try {
+    const row = db.prepare("SELECT value FROM sync_config WHERE key = 'drawer_port'").get();
+    const printerName = row?.value || 'POS-80';
+    const { businessName, dateLabel, totalOrders, filteredCount, totalRevenue, totalDiscount, products } = req.body;
+
+    const W = 42;
+    const eq = '='.repeat(W);
+    const da = '-'.repeat(W);
+    const center = (str) => {
+      const s = String(str).substring(0, W);
+      const pad = Math.floor((W - s.length) / 2);
+      return ' '.repeat(pad) + s;
+    };
+    const cols = (left, right) => {
+      const l = String(left).substring(0, W - String(right).length - 1);
+      return l + ' '.repeat(W - l.length - String(right).length) + String(right);
+    };
+
+    const lines = [];
+    lines.push(center(businessName || 'BUTCHERY PRO'));
+    lines.push(eq);
+    lines.push(center('SALES REPORT'));
+    lines.push(center(dateLabel || ''));
+    lines.push(eq);
+    lines.push(cols('Total Orders:', `${totalOrders} (${filteredCount} incl. void)`));
+    lines.push(cols('Total Revenue:', `K${parseFloat(totalRevenue || 0).toFixed(2)}`));
+    lines.push(cols('Total Discounts:', `K${parseFloat(totalDiscount || 0).toFixed(2)}`));
+    lines.push(eq);
+
+    // Column headers
+    const col1W = 20, col2W = 6, col3W = 7, col4W = 9;
+    lines.push('PRODUCT'.padEnd(col1W) + 'QTY'.padStart(col2W) + 'PRICE'.padStart(col3W) + 'TOTAL'.padStart(col4W));
+    lines.push(da);
+
+    let grandTotal = 0;
+    (products || []).forEach(p => {
+      const name = String(p.product_name).substring(0, col1W).padEnd(col1W);
+      const qty = parseFloat(p.total_qty).toFixed(2).padStart(col2W);
+      const price = `K${parseFloat(p.avg_price).toFixed(2)}`.padStart(col3W);
+      const total = `K${parseFloat(p.total_revenue).toFixed(2)}`.padStart(col4W);
+      lines.push(name + qty + price + total);
+      grandTotal += parseFloat(p.total_revenue);
+    });
+
+    lines.push(da);
+    lines.push(cols('GRAND TOTAL:', `K${grandTotal.toFixed(2)}`));
+    lines.push(eq);
+
+    const now = new Date();
+    lines.push(center('Printed: ' + now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
+
+    const text = lines.join('\n') + '\n\n\n\n\n\n';
+
+    const ESC = Buffer.from([0x1B, 0x40]);
+    const CUT = Buffer.from([0x1D, 0x56, 0x00]);
+    const content = Buffer.from(text, 'utf8');
+    const allBytes = Buffer.concat([ESC, content, CUT]);
+
+    const tmpBin = path.join(os.tmpdir(), 'butchery_report.bin');
+    fs.writeFileSync(tmpBin, allBytes);
+
+    const psScript = `
+$source = @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrint3 {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint="OpenPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
+    public static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint="ClosePrinter")]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartDocPrinterA", SetLastError=true, CharSet=CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+    [DllImport("winspool.Drv", EntryPoint="EndDocPrinter")]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartPagePrinter")]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="EndPagePrinter")]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+    public static bool Send(string printer, byte[] bytes) {
+        IntPtr hPrinter; IntPtr pBuf = IntPtr.Zero;
+        DOCINFOA di = new DOCINFOA(); di.pDocName = "report"; di.pDataType = "RAW";
+        if (!OpenPrinter(printer, out hPrinter, IntPtr.Zero)) return false;
+        if (!StartDocPrinter(hPrinter, 1, di)) { ClosePrinter(hPrinter); return false; }
+        StartPagePrinter(hPrinter);
+        pBuf = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(bytes.Length);
+        System.Runtime.InteropServices.Marshal.Copy(bytes, 0, pBuf, bytes.Length);
+        int written;
+        WritePrinter(hPrinter, pBuf, bytes.Length, out written);
+        System.Runtime.InteropServices.Marshal.FreeCoTaskMem(pBuf);
+        EndPagePrinter(hPrinter); EndDocPrinter(hPrinter); ClosePrinter(hPrinter);
+        return true;
+    }
+}
+"@
+Add-Type -TypeDefinition $source -Language CSharp
+$bytes = [System.IO.File]::ReadAllBytes("${tmpBin.replace(/\\/g, '\\\\')}")
+[RawPrint3]::Send("${printerName}", $bytes)
+`;
+
+    const tmpPs = path.join(os.tmpdir(), 'butchery_report.ps1');
+    fs.writeFileSync(tmpPs, psScript, 'utf8');
+    exec(`powershell -ExecutionPolicy Bypass -File "${tmpPs}"`, (err, stdout, stderr) => {
+      if (err) return res.status(500).json({ error: 'Failed to print report: ' + (stderr || err.message) });
+      res.json({ success: true });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

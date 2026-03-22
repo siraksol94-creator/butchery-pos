@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings, getOrderProductSummary } from '../services/api';
+import { getOrders, getOrder, reverseOrder, reverseOrderItem, getSettings, getOrderProductSummary, printReport } from '../services/api';
 import { FiFileText, FiDollarSign, FiShoppingCart, FiCalendar, FiEye, FiRotateCcw, FiX, FiPrinter } from 'react-icons/fi';
 const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
 
@@ -12,6 +12,9 @@ const SalesReport = () => {
   const [viewLoading, setViewLoading] = useState(false);
   const [reversingItemId, setReversingItemId] = useState(null);
   const [businessName, setBusinessName] = useState('Butchery Pro');
+  const [activeTab, setActiveTab] = useState('transactions');
+  const [itemSummary, setItemSummary] = useState([]);
+  const [itemSummaryLoading, setItemSummaryLoading] = useState(false);
   const fetchOrders = useCallback(async () => {
     try {
       const res = await getOrders();
@@ -23,10 +26,26 @@ const SalesReport = () => {
     }
   }, []);
 
+  const fetchItemSummary = useCallback(async () => {
+    setItemSummaryLoading(true);
+    try {
+      const res = await getOrderProductSummary(dateFrom, dateTo);
+      setItemSummary(res.data || []);
+    } catch (err) {
+      setItemSummary([]);
+    } finally {
+      setItemSummaryLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
   useEffect(() => {
     fetchOrders();
     getSettings().then(r => { if (r.data?.business_name) setBusinessName(r.data.business_name); }).catch(() => {});
   }, [fetchOrders]);
+
+  useEffect(() => {
+    if (activeTab === 'byItem') fetchItemSummary();
+  }, [activeTab, fetchItemSummary]);
 
   const filtered = orders.filter(o => {
     const od = new Date(o.created_at + 'Z');
@@ -162,6 +181,20 @@ const SalesReport = () => {
       const res = await getOrderProductSummary(dateFrom, dateTo);
       products = res.data || [];
     } catch (err) { /* skip */ }
+
+    // Try silent print via backend (same as POS receipt)
+    try {
+      await printReport({
+        businessName,
+        dateLabel,
+        totalOrders: activeOrders.length,
+        filteredCount: filtered.length,
+        totalRevenue,
+        totalDiscount,
+        products,
+      });
+      return;
+    } catch (e) { /* fallback to browser print */ }
 
     const div = '='.repeat(42);
     const productRows = products.map(p =>
@@ -441,7 +474,30 @@ const SalesReport = () => {
 
       </div>
 
-      {/* Orders Table */}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '2px solid #e5e7eb' }}>
+        {[
+          { key: 'transactions', label: 'Transactions' },
+          { key: 'byItem', label: 'By Item' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              padding: '10px 22px', border: 'none', background: 'none',
+              cursor: 'pointer', fontSize: 14, fontWeight: 700,
+              color: activeTab === tab.key ? '#2563eb' : '#6b7280',
+              borderBottom: activeTab === tab.key ? '3px solid #2563eb' : '3px solid transparent',
+              marginBottom: -2, transition: 'color 0.15s',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Transactions Tab */}
+      {activeTab === 'transactions' && (
       <div className="card">
         <div className="card-header">
           <h3>Sales Transactions</h3>
@@ -510,6 +566,55 @@ const SalesReport = () => {
           </div>
         )}
       </div>
+      )}
+
+      {/* By Item Tab */}
+      {activeTab === 'byItem' && (
+      <div className="card">
+        <div className="card-header">
+          <h3>Sales by Item</h3>
+          <span style={{ fontSize: 13, color: '#6b7280' }}>{itemSummary.length} products</span>
+        </div>
+        {itemSummaryLoading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>Loading...</div>
+        ) : itemSummary.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>No items sold in this period.</div>
+        ) : (
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Product Name</th>
+                  <th>Unit</th>
+                  <th>Total Qty Sold</th>
+                  <th>Avg Unit Price</th>
+                  <th>Total Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemSummary.map((item, idx) => (
+                  <tr key={idx}>
+                    <td style={{ color: '#9ca3af', fontSize: 12 }}>{idx + 1}</td>
+                    <td><strong>{item.product_name}</strong></td>
+                    <td style={{ color: '#6b7280' }}>{item.unit || '—'}</td>
+                    <td>{parseFloat(item.total_qty).toFixed(2)}</td>
+                    <td>${parseFloat(item.avg_price).toFixed(2)}</td>
+                    <td><strong style={{ color: '#16a34a' }}>${parseFloat(item.total_revenue).toFixed(2)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#f8faff', fontWeight: 700 }}>
+                  <td colSpan={5} style={{ textAlign: 'right', paddingRight: 16, color: '#374151' }}>Grand Total</td>
+                  <td style={{ color: '#16a34a' }}>${itemSummary.reduce((s, p) => s + parseFloat(p.total_revenue), 0).toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
 
       {/* View Order Receipt Modal */}
       <style>{`

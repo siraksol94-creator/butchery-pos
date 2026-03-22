@@ -63,6 +63,7 @@ router.get('/product-summary', auth, readOnlyGuard, (req, res) => {
     let sql = `
       SELECT
         oi.product_name,
+        MAX(oi.unit) AS unit,
         SUM(oi.quantity) AS total_qty,
         ROUND(SUM(oi.total_price) / SUM(oi.quantity), 2) AS avg_price,
         SUM(oi.total_price) AS total_revenue
