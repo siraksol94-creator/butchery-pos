@@ -207,13 +207,14 @@ router.post('/print-receipt', (req, res) => {
     lines.push(center('Thank you for your purchase!'));
     lines.push(center('Please come again.'));
 
-    const text = lines.join('\n') + '\n\n\n\n';
+    const text = lines.join('\n') + '\n\n\n\n\n\n';
 
     // Write ESC/POS content to temp binary file
     const ESC = Buffer.from([0x1B, 0x40]); // init
     const CUT = Buffer.from([0x1D, 0x56, 0x00]); // full cut
+    const DRAWER = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // drawer kick
     const content = Buffer.from(text, 'utf8');
-    const allBytes = Buffer.concat([ESC, content, CUT]);
+    const allBytes = Buffer.concat([ESC, content, CUT, DRAWER]);
 
     const tmpBin = path.join(os.tmpdir(), 'butchery_receipt.bin');
     fs.writeFileSync(tmpBin, allBytes);
