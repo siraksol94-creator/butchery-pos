@@ -593,7 +593,9 @@ const CashReceipt = () => {
         @media print {
           .no-print { display: none !important; }
           .print-preview-overlay {
-            position: static !important;
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            right: 0 !important; bottom: 0 !important;
             background: #fff !important;
             padding: 0 !important;
             overflow: visible !important;
