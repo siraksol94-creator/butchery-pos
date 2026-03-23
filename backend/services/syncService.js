@@ -17,6 +17,7 @@ const SYNC_TABLES = [
   'sales_returns', 'sales_return_items',
   'stock_movements', 'cash_receipts', 'payment_vouchers', 'cash_book',
   'business_settings', 'cash_reports', 'stock_adjustments', 'daily_actual_balance',
+  'ap_payments',
 ];
 
 const VPS_URL         = (process.env.VPS_URL || 'https://butchery.sidanitsolutions.com').replace(/\/$/, '');
