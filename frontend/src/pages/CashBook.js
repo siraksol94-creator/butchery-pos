@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCashBook, getCashBookStats, setOpeningBalance, getSettings } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiEdit2, FiSave, FiX, FiPrinter, FiFilter } from 'react-icons/fi';
 const CashBook = () => {
-  const { user } = useAuth();
   const [stats, setStats] = useState({ openingBalance: 0, totalReceipts: 0, totalPV: 0, totalAP: 0, totalPayments: 0, currentBalance: 0 });
   const [entries, setEntries] = useState([]);
   const [businessInfo, setBusinessInfo] = useState({});
@@ -322,7 +320,7 @@ const CashBook = () => {
 
             <div id="cb-list-document" style={{ width: 794, background: '#fff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}>
               {/* Header */}
-              <div className="cb-print-banner" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>{businessInfo.business_name || 'Business Name'}</div>
                   <div style={{ fontSize: 11, opacity: 0.75 }}>{[businessInfo.business_address, businessInfo.business_phone].filter(Boolean).join('  |  ')}</div>
@@ -401,20 +399,6 @@ const CashBook = () => {
                   </table>
                 </div>
 
-                {/* Signatures */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 44px 20px', borderTop: '1.5px solid #e2e8f0', marginTop: 8 }}>
-                  <div style={{ flex: 1, paddingRight: 40 }}>
-                    <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                    <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                      {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
-                    </div>
-                  </div>
-                  <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                    <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Received by</div>
-                    <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
-                  </div>
-                </div>
-
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
                   <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>Printed: {printedAt}</span>
@@ -424,12 +408,6 @@ const CashBook = () => {
           </div>
         );
       })()}
-      <style>{`
-        @media print {
-          .cb-print-banner { background: white !important; color: black !important; }
-          .cb-print-banner * { color: black !important; opacity: 1 !important; }
-        }
-      `}</style>
     </div>
   );
 };

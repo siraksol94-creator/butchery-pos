@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, getSettings } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEdit2, FiEye, FiPrinter, FiX } from 'react-icons/fi';
 
 const getCategoryColor = (cat) => {
@@ -11,7 +10,6 @@ const getCategoryColor = (cat) => {
 const todayStr = new Date().toISOString().split('T')[0];
 
 const PaymentVoucher = () => {
-  const { user } = useAuth();
   const [stats, setStats]       = useState({ todayPayments: 0, thisMonth: 0, totalVouchers: 0 });
   const [vouchers, setVouchers] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -386,7 +384,7 @@ const PaymentVoucher = () => {
             style={{ width: 794, background: '#ffffff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
           >
             {/* Header */}
-            <div className="pv-list-banner" style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>
                   {businessInfo.business_name || businessInfo.business?.business_name || 'Business Name'}
@@ -460,20 +458,6 @@ const PaymentVoucher = () => {
                     </tr>
                   </tfoot>
                 </table>
-              </div>
-
-              {/* Signatures */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 44px 20px', borderTop: '1.5px solid #e2e8f0', marginTop: 8 }}>
-                <div style={{ flex: 1, paddingRight: 40 }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                    {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
-                  </div>
-                </div>
-                <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Checked by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
-                </div>
               </div>
 
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between' }}>
@@ -597,17 +581,13 @@ const PaymentVoucher = () => {
             </div>
 
             {/* Signature Lines */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32 }}>
-              <div style={{ flex: 1, paddingRight: 40 }}>
-                <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                  {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 32, marginTop: 32 }}>
+              {['Prepared By', 'Approved By', 'Received By'].map(label => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div style={{ height: 1, background: '#9ca3af', marginBottom: 8 }} />
+                  <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>{label}</div>
                 </div>
-              </div>
-              <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Checked by</div>
-                <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
-              </div>
+              ))}
             </div>
 
             {/* Footer note */}
@@ -698,8 +678,6 @@ const PaymentVoucher = () => {
             overflow: visible !important; display: block !important;
           }
           #pv-print-document { box-shadow: none !important; width: 100% !important; margin: 0 !important; }
-          .pv-list-banner { background: white !important; color: black !important; }
-          .pv-list-banner * { color: black !important; opacity: 1 !important; }
         }
       `}</style>
     </div>

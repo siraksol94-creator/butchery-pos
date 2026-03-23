@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN, createApPayment } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiFileText, FiCalendar, FiUsers, FiClock, FiX, FiTrash2, FiPrinter, FiSearch, FiChevronDown, FiChevronUp, FiPackage, FiEdit2, FiEye, FiDollarSign } from 'react-icons/fi';
 
 const defaultStats = { totalGRNs: 0, thisMonth: 0, suppliers: 0, pending: 0 };
@@ -23,7 +22,6 @@ const paymentStatusStyle = (status) => {
 
 const GRN = () => {
   const { t } = useLanguage();
-  const { user } = useAuth();
   const [stats, setStats]       = useState(defaultStats);
   const [grns, setGRNs]         = useState([]);
   const [products, setProducts] = useState([]);
@@ -1127,7 +1125,7 @@ const GRN = () => {
             style={{ width: 794, background: '#ffffff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
           >
             {/* Header Banner */}
-            <div className="grn-list-banner" style={{ background: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ background: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>
                   {businessInfo.business_name || 'Business Name'}
@@ -1265,20 +1263,6 @@ const GRN = () => {
                 </table>
               </div>
 
-              {/* Signatures */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 44px 20px', borderTop: '1.5px solid #e2e8f0', marginTop: 8 }}>
-                <div style={{ flex: 1, paddingRight: 40 }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                    {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
-                  </div>
-                </div>
-                <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Received by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
-                </div>
-              </div>
-
               {/* Footer */}
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
@@ -1309,9 +1293,6 @@ const GRN = () => {
             width: 100% !important;
             margin: 0 !important;
           }
-          .grn-list-banner, .grn-single-banner { background: white !important; color: black !important; }
-          .grn-list-banner *, .grn-single-banner * { color: black !important; opacity: 1 !important; }
-
         }
       `}</style>
 
@@ -1348,7 +1329,7 @@ const GRN = () => {
             style={{ width: 794, background: '#fff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
           >
             {/* ── Green gradient header ── */}
-            <div className="grn-single-banner" style={{ background: 'linear-gradient(135deg, #14532d 0%, #166534 50%, #16a34a 100%)', padding: '30px 44px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ background: 'linear-gradient(135deg, #14532d 0%, #166534 50%, #16a34a 100%)', padding: '30px 44px 24px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 8, letterSpacing: 3, textTransform: 'uppercase', opacity: 0.6, marginBottom: 8 }}>Goods Received Note</div>
                 <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: 0.3, marginBottom: 6 }}>
@@ -1444,20 +1425,6 @@ const GRN = () => {
                     <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>Name / Signature / Date</div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Signatures */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 44px 20px', borderTop: '1.5px solid #e2e8f0', marginTop: 8 }}>
-              <div style={{ flex: 1, paddingRight: 40 }}>
-                <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                  {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
-                </div>
-              </div>
-              <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Received by</div>
-                <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
               </div>
             </div>
 

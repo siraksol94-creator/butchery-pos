@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getProductions, getProductionStats, createProduction, deleteProduction, getProduction, getSettings } from '../services/api';
 import { getStoreInventory } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -10,7 +9,6 @@ const emptyInput  = { product_id: '', product_name: '', quantity: '', unit_cost:
 const emptyOutput = { product_id: '', product_name: '', quantity: '', unit: 'kg' };
 
 const Production = () => {
-  const { user } = useAuth();
   const [entries, setEntries]       = useState([]);
   const [stats, setStats]           = useState({ total: 0, thisMonth: 0 });
   const [products, setProducts]     = useState([]);
@@ -630,7 +628,7 @@ const Production = () => {
             style={{ width: 794, background: '#ffffff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
           >
             {/* Header Banner */}
-            <div className="prod-print-banner" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>
                   {businessInfo.business_name || 'Business Name'}
@@ -785,20 +783,6 @@ const Production = () => {
                 </table>
               </div>
 
-              {/* Signatures */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 44px 20px', borderTop: '1.5px solid #e2e8f0', marginTop: 8 }}>
-                <div style={{ flex: 1, paddingRight: 40 }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Prepared by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, fontWeight: 600, color: '#1a1a2e' }}>
-                    {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}
-                  </div>
-                </div>
-                <div style={{ flex: 1, paddingLeft: 40, textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#374151', fontWeight: 700, marginBottom: 22 }}>Received by</div>
-                  <div style={{ borderTop: '1.5px solid #374151', paddingTop: 6, fontSize: 11, color: '#9ca3af' }}>&nbsp;</div>
-                </div>
-              </div>
-
               {/* Footer */}
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
@@ -825,8 +809,6 @@ const Production = () => {
             width: 100% !important;
             margin: 0 !important;
           }
-          .prod-print-banner { background: white !important; color: black !important; }
-          .prod-print-banner * { color: black !important; opacity: 1 !important; }
         }
       `}</style>
     </div>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { FiSave, FiCalendar, FiEdit2, FiPlus, FiPrinter, FiEye, FiX } from 'react-icons/fi';
-import { useAuth } from '../context/AuthContext';
 import { createPaymentVoucher, getSuppliers, getPaymentVouchers, getSettings, createCashReceipt, updateCashReceipt, checkSalesCashReceipt } from '../services/api';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -14,7 +13,6 @@ const getStatus = (diff) => {
 };
 
 const CashReport = () => {
-  const { user } = useAuth();
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [reports, setReports] = useState([]);
@@ -832,7 +830,7 @@ const CashReport = () => {
             }}
           >
             {/* ── Document Header ── */}
-            <div className="ap-print-banner" style={{
+            <div style={{
               background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%)',
               padding: '30px 44px 24px',
               color: '#fff',
@@ -1081,26 +1079,23 @@ const CashReport = () => {
               )}
 
               {/* ── Signatures ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, paddingTop: 20, borderTop: '1.5px solid #e2e8f0' }}>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 6 }}>Prepared by</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#1a1a2e', marginBottom: 16 }}>{[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || ''}</div>
-                  {['Signature', 'Date'].map(field => (
-                    <div key={field} style={{ marginBottom: 20 }}>
-                      <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: 2, marginBottom: 4, minHeight: 20 }}>&nbsp;</div>
-                      <div style={{ fontSize: 9.5, color: '#94a3b8', letterSpacing: 0.3 }}>{field}</div>
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48,
+                paddingTop: 20, borderTop: '1.5px solid #e2e8f0',
+              }}>
+                {['Prepared by (Cashier)', 'Approved by (Manager)'].map(label => (
+                  <div key={label}>
+                    <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 22 }}>
+                      {label}
                     </div>
-                  ))}
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 22 }}>Checked by</div>
-                  {['Name', 'Signature', 'Date'].map(field => (
-                    <div key={field} style={{ marginBottom: 20 }}>
-                      <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: 2, marginBottom: 4, minHeight: 20 }}>&nbsp;</div>
-                      <div style={{ fontSize: 9.5, color: '#94a3b8', letterSpacing: 0.3 }}>{field}</div>
-                    </div>
-                  ))}
-                </div>
+                    {['Name', 'Signature', 'Date'].map(field => (
+                      <div key={field} style={{ marginBottom: 20 }}>
+                        <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: 2, marginBottom: 4, minHeight: 20 }}>&nbsp;</div>
+                        <div style={{ fontSize: 9.5, color: '#94a3b8', letterSpacing: 0.3 }}>{field}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
 
               {/* ── Document Footer ── */}
@@ -1201,8 +1196,6 @@ const CashReport = () => {
             width: 100% !important;
             margin: 0 !important;
           }
-          .ap-print-banner { background: white !important; color: black !important; }
-          .ap-print-banner * { color: black !important; opacity: 1 !important; }
         }
       `}</style>
     </div>
