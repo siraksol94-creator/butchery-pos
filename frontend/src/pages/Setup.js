@@ -315,8 +315,8 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Email</label>
-              <input type="email" required value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="admin@yourbusiness.com" style={inputStyle} />
+              <label style={labelStyle}>Username</label>
+              <input type="text" required value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="e.g. solomon or admin" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Password</label>

@@ -77,6 +77,8 @@ const SIV = () => {
   const [viewLoading, setViewLoading]   = useState(false);
   const [showSIVPrint, setShowSIVPrint] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printItemsMap, setPrintItemsMap]       = useState({});
+  const [printItemsLoading, setPrintItemsLoading] = useState(false);
 
   // ── View mode ─────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState('by-siv'); // 'by-siv' | 'by-item'
@@ -282,6 +284,18 @@ const SIV = () => {
     }
   };
 
+  const openPrintPreview = async () => {
+    setPrintItemsLoading(true);
+    try {
+      const results = await Promise.all(filteredSIVs.map(s => getSIV(s.id)));
+      const map = {};
+      results.forEach(res => { if (res?.data?.id) map[res.data.id] = res.data.items || []; });
+      setPrintItemsMap(map);
+    } catch (e) {}
+    setPrintItemsLoading(false);
+    setShowPrintPreview(true);
+  };
+
   return (
     <div className="page-content">
 
@@ -293,7 +307,8 @@ const SIV = () => {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button
-            onClick={() => setShowPrintPreview(true)}
+            onClick={openPrintPreview}
+            disabled={printItemsLoading}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
               padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb',
@@ -988,25 +1003,56 @@ const SIV = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSIVs.map((siv, idx) => (
-                      <tr key={siv.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
-                        <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#2563eb' }}>{siv.siv_number}</td>
-                        <td style={{ padding: '8px 12px', color: '#374151' }}>{formatDate(siv.date)}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{siv.department}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#374151' }}>{siv.total_items}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#1d4ed8' }}>
-                          ${parseFloat(siv.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                          <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600,
-                            background: siv.status === 'Issued' ? '#dcfce7' : '#fef9c3',
-                            color: siv.status === 'Issued' ? '#166534' : '#854d0e' }}>
-                            {siv.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredSIVs.map((siv, idx) => {
+                      const sivItems = printItemsMap[siv.id] || [];
+                      return (
+                        <React.Fragment key={siv.id}>
+                          <tr style={{ background: idx % 2 === 1 ? '#eff6ff' : '#fff', borderTop: idx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                            <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#2563eb' }}>{siv.siv_number}</td>
+                            <td style={{ padding: '8px 12px', color: '#374151' }}>{formatDate(siv.date)}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{siv.department}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#374151' }}>{siv.total_items}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#1d4ed8' }}>
+                              ${parseFloat(siv.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600,
+                                background: siv.status === 'Issued' ? '#dcfce7' : '#fef9c3',
+                                color: siv.status === 'Issued' ? '#166534' : '#854d0e' }}>
+                                {siv.status}
+                              </span>
+                            </td>
+                          </tr>
+                          {sivItems.length > 0 && (
+                            <tr style={{ background: '#f8fafc' }}>
+                              <td colSpan={7} style={{ padding: '0 12px 10px 32px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                                  <thead>
+                                    <tr style={{ background: '#e2e8f0' }}>
+                                      <th style={{ padding: '5px 10px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Product</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Qty</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Unit Price</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sivItems.map((item, i) => (
+                                      <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                        <td style={{ padding: '5px 10px', color: '#111827', fontWeight: 500 }}>{item.product_name}{item.unit && <span style={{ marginLeft: 6, fontSize: 10, color: '#6b7280' }}>({item.unit})</span>}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', color: '#374151', fontFamily: 'monospace' }}>{parseFloat(item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', color: '#374151', fontFamily: 'monospace' }}>${parseFloat(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600, color: '#1d4ed8', fontFamily: 'monospace' }}>${parseFloat(item.total_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr style={{ background: '#eff6ff', borderTop: '2px solid #93c5fd' }}>

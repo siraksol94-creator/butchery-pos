@@ -285,10 +285,10 @@ const Users = () => {
 
               {/* Email */}
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Email / Username *</label>
+                <label style={labelStyle}>Username *</label>
                 <div style={inputWrap}>
                   <FiMail size={14} style={iconStyle} />
-                  <input style={inputStyle} placeholder="Email address or username" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Username" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
                 </div>
               </div>
 

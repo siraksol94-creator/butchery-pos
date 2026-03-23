@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getProductions, getProductionStats, createProduction, deleteProduction, getProduction } from '../services/api';
+import { getProductions, getProductionStats, createProduction, deleteProduction, getProduction, getSettings } from '../services/api';
 import { getStoreInventory } from '../services/api';
 import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
 
@@ -21,6 +21,10 @@ const Production = () => {
   const [error, setError]           = useState('');
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo,   setFilterTo]   = useState(todayStr);
+  const [showPrintPreview, setShowPrintPreview]   = useState(false);
+  const [printItemsMap, setPrintItemsMap]         = useState({});
+  const [printItemsLoading, setPrintItemsLoading] = useState(false);
+  const [businessInfo, setBusinessInfo]           = useState({});
 
   // Form state
   const [date, setDate]     = useState(new Date().toISOString().split('T')[0]);
@@ -176,48 +180,24 @@ const Production = () => {
     return true;
   });
 
+  const filteredTotal = filteredEntries.reduce((s, e) => s + parseFloat(e.total_input_cost || 0), 0);
+
   const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
-  const handlePrint = () => {
-    const dateLabel = filterFrom === filterTo && filterFrom
-      ? fmtDate(filterFrom)
-      : filterFrom || filterTo
-        ? `${filterFrom ? fmtDate(filterFrom) : 'Start'} – ${filterTo ? fmtDate(filterTo) : 'End'}`
-        : 'All Dates';
-    const rows = filteredEntries.map(e => `
-      <tr>
-        <td>${e.production_number}</td>
-        <td>${e.date}</td>
-        <td style="text-align:center">${e.input_count}</td>
-        <td style="text-align:center">${e.output_count}</td>
-        <td style="text-align:right">K ${parseFloat(e.total_input_cost || 0).toFixed(2)}</td>
-        <td style="text-align:right">K ${parseFloat(e.cost_per_kg || 0).toFixed(2)}</td>
-        <td>${e.notes || '—'}</td>
-      </tr>`).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
-      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
-      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
-      .sub{font-size:11px;color:#6b7280;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-top:4px}
-      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
-      td{border:1px solid #e5e7eb;padding:7px 10px}
-      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
-    </style></head><body>
-      <div class="hdr">
-        <div class="biz">Production Entries</div>
-        <div class="sub">${dateLabel}</div>
-      </div>
-      <table>
-        <thead><tr><th>Production #</th><th>Date</th><th style="text-align:center">Inputs</th><th style="text-align:center">Outputs</th><th style="text-align:right">Total Cost</th><th style="text-align:right">Cost/kg</th><th>Notes</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#9ca3af">No entries</td></tr>'}</tbody>
-      </table>
-      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-    </body></html>`;
-    const w = window.open('', '_blank');
-    w.document.write(html); w.document.close(); w.focus();
-    setTimeout(() => w.print(), 300);
+  const openPrintPreview = async () => {
+    setPrintItemsLoading(true);
+    try {
+      const [results, settings] = await Promise.all([
+        Promise.all(filteredEntries.map(e => getProduction(e.id))),
+        getSettings(),
+      ]);
+      const map = {};
+      results.forEach(res => { if (res?.data?.id) map[res.data.id] = res.data; });
+      setPrintItemsMap(map);
+      setBusinessInfo(settings?.data?.business || {});
+    } catch (e) {}
+    setPrintItemsLoading(false);
+    setShowPrintPreview(true);
   };
 
   return (
@@ -228,8 +208,8 @@ const Production = () => {
           <p>Transform raw materials into finished products</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-            <FiPrinter size={15} /> Print
+          <button onClick={openPrintPreview} disabled={printItemsLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: printItemsLoading ? '#93c5fd' : '#2563eb', color: '#fff', cursor: printItemsLoading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
+            <FiPrinter size={15} /> {printItemsLoading ? 'Loading...' : 'Print'}
           </button>
           <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <FiPlus /> New Production Entry
@@ -614,6 +594,225 @@ const Production = () => {
           </div>
         </div>
       )}
+
+      {/* ── Print Preview ────────────────────────────────────────── */}
+      {showPrintPreview && (
+        <div
+          className="print-preview-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto', paddingTop: 60, paddingBottom: 40 }}
+        >
+          {/* Toolbar */}
+          <div
+            className="no-print"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 52, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 1001, borderBottom: '1px solid #1e293b' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <FiPrinter size={16} style={{ color: '#64748b' }} />
+              <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>
+                Print Preview — Production Entries ({filteredEntries.length} records)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => window.print()} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 20px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                <FiPrinter size={14} /> Print
+              </button>
+              <button onClick={() => setShowPrintPreview(false)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>
+                <FiX size={14} /> Close
+              </button>
+            </div>
+          </div>
+
+          {/* A4 Document */}
+          <div
+            id="print-document"
+            style={{ width: 794, background: '#ffffff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
+          >
+            {/* Header Banner */}
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>
+                  {businessInfo.business_name || 'Business Name'}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.7 }}>
+                  {[businessInfo.business_address, businessInfo.business_phone, businessInfo.business_email].filter(Boolean).join('  |  ')}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.65, marginBottom: 6 }}>Production Report</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>
+                  {filterFrom || filterTo
+                    ? `${filterFrom ? fmtDate(filterFrom) : 'All'} — ${filterTo ? fmtDate(filterTo) : 'All'}`
+                    : fmtDate(todayStr)}
+                </div>
+                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>Printed: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </div>
+
+            {/* Accent bar */}
+            <div style={{ height: 4, background: 'linear-gradient(90deg, #f59e0b, #16a34a, #2563eb)' }} />
+
+            {/* Body */}
+            <div style={{ padding: '26px 44px 36px' }}>
+
+              {/* Summary chips */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: 'Total Entries (All)', value: stats.total,            bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+                  { label: 'This Month',           value: stats.thisMonth,        bg: '#f0fdf4', color: '#15803d', border: '#86efac' },
+                  { label: 'Filtered Entries',     value: filteredEntries.length, bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+                  { label: 'Total Input Cost',     value: `K ${filteredTotal.toFixed(2)}`, bg: '#fdf4ff', color: '#7e22ce', border: '#e9d5ff' },
+                ].map(chip => (
+                  <div key={chip.label} style={{ padding: '12px 16px', borderRadius: 10, background: chip.bg, border: `1.5px solid ${chip.border}`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 9.5, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{chip.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: chip.color }}>{chip.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Production Table */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+                <div style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
+                    <span style={{ fontWeight: 700, fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase', color: '#475569' }}>Production Records</span>
+                  </div>
+                  {(filterFrom || filterTo) && (
+                    <span style={{ fontSize: 10.5, color: '#64748b' }}>
+                      {filterFrom ? fmtDate(filterFrom) : '—'}  to  {filterTo ? fmtDate(filterTo) : '—'}
+                    </span>
+                  )}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                  <thead>
+                    <tr style={{ background: '#f9fafb' }}>
+                      {['#', 'Production #', 'Date', 'Inputs', 'Outputs', 'Total Cost', 'Cost/kg', 'Notes'].map((h, i) => (
+                        <th key={h} style={{ padding: '8px 10px', textAlign: i >= 5 ? 'right' : 'left', fontWeight: 600, color: '#6b7280', borderBottom: '1px solid #e5e7eb', fontSize: 10.5, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntries.map((entry, idx) => {
+                      const detail = printItemsMap[entry.id];
+                      const pInputs  = detail?.inputs  || [];
+                      const pOutputs = detail?.outputs || [];
+                      return (
+                        <React.Fragment key={entry.id}>
+                          <tr style={{ background: idx % 2 === 1 ? '#eff6ff' : '#fff', borderTop: idx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                            <td style={{ padding: '8px 10px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#1d4ed8' }}>{entry.production_number}</td>
+                            <td style={{ padding: '8px 10px', color: '#374151' }}>{fmtDate(entry.date)}</td>
+                            <td style={{ padding: '8px 10px', color: '#374151' }}>{entry.input_count} item{entry.input_count !== 1 ? 's' : ''}</td>
+                            <td style={{ padding: '8px 10px', color: '#374151' }}>{entry.output_count} item{entry.output_count !== 1 ? 's' : ''}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#b45309' }}>K {parseFloat(entry.total_input_cost || 0).toFixed(2)}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'monospace', color: '#374151' }}>K {parseFloat(entry.cost_per_kg || 0).toFixed(2)}</td>
+                            <td style={{ padding: '8px 10px', color: '#9ca3af', fontSize: 10.5 }}>{entry.notes || '—'}</td>
+                          </tr>
+                          {(pInputs.length > 0 || pOutputs.length > 0) && (
+                            <tr style={{ background: '#f8fafc' }}>
+                              <td colSpan={8} style={{ padding: '0 10px 10px 28px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: pInputs.length > 0 && pOutputs.length > 0 ? '1fr 1fr' : '1fr', gap: 12 }}>
+                                  {pInputs.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: 9.5, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Inputs Consumed</div>
+                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                                        <thead>
+                                          <tr style={{ background: '#fef3c7' }}>
+                                            <th style={{ padding: '4px 8px', textAlign: 'left',  color: '#92400e', fontWeight: 600 }}>Product</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#92400e', fontWeight: 600 }}>Qty</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#92400e', fontWeight: 600 }}>Unit Cost</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#92400e', fontWeight: 600 }}>Total</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {pInputs.map((item, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid #fde68a' }}>
+                                              <td style={{ padding: '4px 8px', color: '#111827', fontWeight: 500 }}>{item.product_name}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(item.quantity).toFixed(2)} {item.unit}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>K {parseFloat(item.unit_cost).toFixed(2)}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#b45309', fontFamily: 'monospace' }}>K {parseFloat(item.total_cost).toFixed(2)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                  {pOutputs.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: 9.5, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Outputs Produced</div>
+                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                                        <thead>
+                                          <tr style={{ background: '#dcfce7' }}>
+                                            <th style={{ padding: '4px 8px', textAlign: 'left',  color: '#14532d', fontWeight: 600 }}>Product</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#14532d', fontWeight: 600 }}>Qty</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#14532d', fontWeight: 600 }}>Cost/kg</th>
+                                            <th style={{ padding: '4px 8px', textAlign: 'right', color: '#14532d', fontWeight: 600 }}>Allocated</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {pOutputs.map((item, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid #bbf7d0' }}>
+                                              <td style={{ padding: '4px 8px', color: '#111827', fontWeight: 500 }}>{item.product_name}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(item.quantity).toFixed(2)} {item.unit}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>K {parseFloat(item.allocated_cost_per_unit).toFixed(2)}</td>
+                                              <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#15803d', fontFamily: 'monospace' }}>K {parseFloat(item.total_allocated_cost).toFixed(2)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#eff6ff', borderTop: '2px solid #bfdbfe' }}>
+                      <td colSpan={5} style={{ padding: '10px 10px', fontWeight: 700, fontSize: 11.5, color: '#1e3a8a' }}>
+                        TOTAL — {filteredEntries.length} Entr{filteredEntries.length !== 1 ? 'ies' : 'y'}
+                      </td>
+                      <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 800, fontSize: 13, fontFamily: 'monospace', color: '#b45309' }}>
+                        K {filteredTotal.toFixed(2)}
+                      </td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>Printed: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Print styles ──────────────────────────────────────────── */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          .print-preview-overlay {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            right: 0 !important; bottom: 0 !important;
+            background: #fff !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          #print-document {
+            box-shadow: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

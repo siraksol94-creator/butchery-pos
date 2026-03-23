@@ -44,6 +44,8 @@ const GRN = () => {
   // ── Print preview ─────────────────────────────────────────────────
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [businessInfo, setBusinessInfo]         = useState({});
+  const [printItemsMap, setPrintItemsMap]       = useState({});
+  const [printItemsLoading, setPrintItemsLoading] = useState(false);
 
   // ── Product Received Report ────────────────────────────────────────
   const [showReport, setShowReport]       = useState(false);
@@ -292,6 +294,22 @@ const GRN = () => {
 
   const reportTotal = reportData.reduce((s, r) => s + parseFloat(r.total_cost || 0), 0);
 
+  const openPrintPreview = async () => {
+    setPrintItemsLoading(true);
+    try {
+      const [results, settings] = await Promise.all([
+        Promise.all(filteredGRNs.map(g => getGRN(g.id))),
+        getSettings(),
+      ]);
+      const map = {};
+      results.forEach(res => { if (res?.data?.id) map[res.data.id] = res.data.items || []; });
+      setPrintItemsMap(map);
+      setBusinessInfo(settings?.data?.business || {});
+    } catch (e) {}
+    setPrintItemsLoading(false);
+    setShowPrintPreview(true);
+  };
+
   return (
     <div className="page-content">
 
@@ -303,7 +321,8 @@ const GRN = () => {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button
-            onClick={() => setShowPrintPreview(true)}
+            onClick={openPrintPreview}
+            disabled={printItemsLoading}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
               padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb',
@@ -1175,26 +1194,57 @@ const GRN = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredGRNs.map((grn, idx) => (
-                      <tr key={grn.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
-                        <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#1d4ed8' }}>{grn.grn_number}</td>
-                        <td style={{ padding: '8px 12px', color: '#374151' }}>{formatDate(grn.date || grn.created_at)}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{grn.supplier_name || '—'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#374151' }}>{grn.total_items}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#15803d' }}>
-                          ${parseFloat(grn.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                          {(() => { const s = paymentStatusStyle(grn.payment_status); return (
-                            <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600,
-                              background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                              {grn.payment_status || 'Not Paid'}
-                            </span>
-                          ); })()}
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredGRNs.map((grn, idx) => {
+                      const grnItems = printItemsMap[grn.id] || [];
+                      return (
+                        <React.Fragment key={grn.id}>
+                          <tr style={{ background: idx % 2 === 1 ? '#f0fdf4' : '#fff', borderTop: idx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                            <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#1d4ed8' }}>{grn.grn_number}</td>
+                            <td style={{ padding: '8px 12px', color: '#374151' }}>{formatDate(grn.date || grn.created_at)}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{grn.supplier_name || '—'}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#374151' }}>{grn.total_items}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#15803d' }}>
+                              ${parseFloat(grn.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              {(() => { const s = paymentStatusStyle(grn.payment_status); return (
+                                <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600,
+                                  background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                                  {grn.payment_status || 'Not Paid'}
+                                </span>
+                              ); })()}
+                            </td>
+                          </tr>
+                          {grnItems.length > 0 && (
+                            <tr style={{ background: '#f8fafc' }}>
+                              <td colSpan={7} style={{ padding: '0 12px 10px 32px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                                  <thead>
+                                    <tr style={{ background: '#e2e8f0' }}>
+                                      <th style={{ padding: '5px 10px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Product</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Qty</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Unit Cost</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#475569', fontWeight: 600 }}>Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {grnItems.map((item, i) => (
+                                      <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                        <td style={{ padding: '5px 10px', color: '#111827', fontWeight: 500 }}>{item.product_name}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', color: '#374151', fontFamily: 'monospace' }}>{parseFloat(item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', color: '#374151', fontFamily: 'monospace' }}>${parseFloat(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600, color: '#15803d', fontFamily: 'monospace' }}>${parseFloat(item.total_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr style={{ background: '#f0fdf4', borderTop: '2px solid #86efac' }}>

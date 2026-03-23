@@ -136,8 +136,8 @@ const Profile = () => {
                   <input type="text" name="lastName" value={form.lastName} onChange={handleChange} />
                 </div>
                 <div className="form-group">
-                  <label>Email Address</label>
-                  <input type="email" name="email" value={form.email} onChange={handleChange} />
+                  <label>Username</label>
+                  <input type="text" name="email" value={form.email} onChange={handleChange} />
                 </div>
                 <div className="form-group">
                   <label>Phone Number</label>

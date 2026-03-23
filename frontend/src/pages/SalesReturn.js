@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getSalesReturns, getSalesReturnStats, getSalesReturnNotes, createSalesReturn, deleteSalesReturn, getSalesReturn, getInventory } from '../services/api';
+import { getSalesReturns, getSalesReturnStats, getSalesReturnNotes, createSalesReturn, deleteSalesReturn, getSalesReturn, getInventory, getSettings } from '../services/api';
 import { FiPlus, FiTrash2, FiX, FiEye, FiCornerDownLeft, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -23,6 +23,10 @@ const SalesReturn = () => {
   const [error, setError]       = useState('');
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo,   setFilterTo]   = useState(todayStr);
+  const [showPrintPreview, setShowPrintPreview]   = useState(false);
+  const [printItemsMap, setPrintItemsMap]         = useState({});
+  const [printItemsLoading, setPrintItemsLoading] = useState(false);
+  const [businessInfo, setBusinessInfo]           = useState({});
 
   const [date, setDate]   = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -130,44 +134,20 @@ const SalesReturn = () => {
     return true;
   });
 
-  const handlePrint = () => {
-    const dateLabel = filterFrom === filterTo && filterFrom
-      ? formatDate(filterFrom)
-      : filterFrom || filterTo
-        ? `${filterFrom ? formatDate(filterFrom) : 'Start'} – ${filterTo ? formatDate(filterTo) : 'End'}`
-        : 'All Dates';
-    const rows = filteredEntries.map(e => `
-      <tr>
-        <td>${e.return_number}</td>
-        <td>${formatDate(e.date)}</td>
-        <td style="text-align:center">${e.item_count}</td>
-        <td>${e.notes || '—'}</td>
-      </tr>`).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page{size:A4;margin:15mm}*{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937}
-      .hdr{text-align:center;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #374151}
-      .biz{font-size:18px;font-weight:bold;margin-bottom:3px}
-      .sub{font-size:11px;color:#6b7280;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-top:4px}
-      th{background:#f3f4f6;border:1px solid #d1d5db;padding:8px 10px;text-align:left;font-weight:bold}
-      td{border:1px solid #e5e7eb;padding:7px 10px}
-      .ft{margin-top:18px;font-size:9px;color:#9ca3af;text-align:center}
-    </style></head><body>
-      <div class="hdr">
-        <div class="biz">Sales Returns to Store</div>
-        <div class="sub">${dateLabel}</div>
-      </div>
-      <table>
-        <thead><tr><th>Return #</th><th>Date</th><th style="text-align:center">Items</th><th>Notes</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#9ca3af">No returns</td></tr>'}</tbody>
-        <tfoot><tr style="font-weight:bold;background:#f9fafb"><td colspan="3" style="text-align:right">Total Returns:</td><td style="text-align:center">${filteredEntries.length}</td></tr></tfoot>
-      </table>
-      <div class="ft">Printed: ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-    </body></html>`;
-    const w = window.open('', '_blank');
-    w.document.write(html); w.document.close(); w.focus();
-    setTimeout(() => w.print(), 300);
+  const openPrintPreview = async () => {
+    setPrintItemsLoading(true);
+    try {
+      const [results, settings] = await Promise.all([
+        Promise.all(filteredEntries.map(e => getSalesReturn(e.id))),
+        getSettings(),
+      ]);
+      const map = {};
+      results.forEach(res => { if (res?.data?.id) map[res.data.id] = res.data; });
+      setPrintItemsMap(map);
+      setBusinessInfo(settings?.data?.business || {});
+    } catch (e) {}
+    setPrintItemsLoading(false);
+    setShowPrintPreview(true);
   };
 
   return (
@@ -178,8 +158,8 @@ const SalesReturn = () => {
           <p>Record items returned from the sales floor back to the store</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={handlePrint} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-            <FiPrinter size={15} /> Print
+          <button onClick={openPrintPreview} disabled={printItemsLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', backgroundColor: printItemsLoading ? '#93c5fd' : '#2563eb', color: '#fff', cursor: printItemsLoading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
+            <FiPrinter size={15} /> {printItemsLoading ? 'Loading...' : 'Print'}
           </button>
           <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <FiPlus /> New Return
@@ -447,6 +427,184 @@ const SalesReturn = () => {
           </div>
         </div>
       )}
+
+      {/* ── Print Preview ──────────────────────────────────────────── */}
+      {showPrintPreview && (
+        <div
+          className="print-preview-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto', paddingTop: 60, paddingBottom: 40 }}
+        >
+          {/* Toolbar */}
+          <div
+            className="no-print"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 52, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 1001, borderBottom: '1px solid #1e293b' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <FiPrinter size={16} style={{ color: '#64748b' }} />
+              <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>
+                Print Preview — Sales Returns ({filteredEntries.length} records)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => window.print()} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 20px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                <FiPrinter size={14} /> Print
+              </button>
+              <button onClick={() => setShowPrintPreview(false)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>
+                <FiX size={14} /> Close
+              </button>
+            </div>
+          </div>
+
+          {/* A4 Document */}
+          <div
+            id="print-document"
+            style={{ width: 794, background: '#ffffff', margin: '0 auto', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", Arial, sans-serif', fontSize: 12, color: '#1a1a2e', flexShrink: 0 }}
+          >
+            {/* Header Banner */}
+            <div style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%)', padding: '28px 44px 22px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: 0.3, marginBottom: 5 }}>
+                  {businessInfo.business_name || 'Business Name'}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.7 }}>
+                  {[businessInfo.business_address, businessInfo.business_phone, businessInfo.business_email].filter(Boolean).join('  |  ')}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.65, marginBottom: 6 }}>Sales Returns to Store</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>
+                  {filterFrom || filterTo
+                    ? `${filterFrom ? formatDate(filterFrom) : 'All'} — ${filterTo ? formatDate(filterTo) : 'All'}`
+                    : formatDate(todayStr)}
+                </div>
+                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>Printed: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </div>
+
+            {/* Accent bar */}
+            <div style={{ height: 4, background: 'linear-gradient(90deg, #2563eb, #0284c7, #06b6d4)' }} />
+
+            {/* Body */}
+            <div style={{ padding: '26px 44px 36px' }}>
+
+              {/* Summary chips */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: 'Total Returns (All)', value: stats.total,            bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+                  { label: 'This Month',           value: stats.thisMonth,        bg: '#f0fdf4', color: '#15803d', border: '#86efac' },
+                  { label: 'Filtered Returns',     value: filteredEntries.length, bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+                ].map(chip => (
+                  <div key={chip.label} style={{ padding: '12px 16px', borderRadius: 10, background: chip.bg, border: `1.5px solid ${chip.border}`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 9.5, letterSpacing: 0.8, textTransform: 'uppercase', color: '#64748b', fontWeight: 600, marginBottom: 6 }}>{chip.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: chip.color }}>{chip.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Returns Table */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+                <div style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0284c7', display: 'inline-block' }} />
+                    <span style={{ fontWeight: 700, fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase', color: '#475569' }}>Return Records</span>
+                  </div>
+                  {(filterFrom || filterTo) && (
+                    <span style={{ fontSize: 10.5, color: '#64748b' }}>
+                      {filterFrom ? formatDate(filterFrom) : '—'}  to  {filterTo ? formatDate(filterTo) : '—'}
+                    </span>
+                  )}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                  <thead>
+                    <tr style={{ background: '#f9fafb' }}>
+                      {['#', 'Return #', 'Date', 'Items', 'Notes'].map((h, i) => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', borderBottom: '1px solid #e5e7eb', fontSize: 10.5, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntries.map((entry, idx) => {
+                      const detail = printItemsMap[entry.id];
+                      const retItems = detail?.items || [];
+                      return (
+                        <React.Fragment key={entry.id}>
+                          <tr style={{ background: idx % 2 === 1 ? '#f0f9ff' : '#fff', borderTop: idx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                            <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: 10.5 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, color: '#1d4ed8' }}>{entry.return_number}</td>
+                            <td style={{ padding: '8px 12px', color: '#374151' }}>{formatDate(entry.date)}</td>
+                            <td style={{ padding: '8px 12px', color: '#374151' }}>{entry.item_count} item{entry.item_count !== 1 ? 's' : ''}</td>
+                            <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 10.5 }}>{entry.notes || '—'}</td>
+                          </tr>
+                          {retItems.length > 0 && (
+                            <tr style={{ background: '#f8fafc' }}>
+                              <td colSpan={5} style={{ padding: '0 12px 10px 32px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
+                                  <thead>
+                                    <tr style={{ background: '#e0f2fe' }}>
+                                      <th style={{ padding: '5px 10px', textAlign: 'left',  color: '#0369a1', fontWeight: 600 }}>Product</th>
+                                      <th style={{ padding: '5px 10px', textAlign: 'right', color: '#0369a1', fontWeight: 600 }}>Qty Returned</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {retItems.map((item, i) => (
+                                      <tr key={i} style={{ borderBottom: '1px solid #bae6fd' }}>
+                                        <td style={{ padding: '5px 10px', color: '#111827', fontWeight: 500 }}>{item.product_name}</td>
+                                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600, color: '#0284c7', fontFamily: 'monospace' }}>{parseFloat(item.quantity).toFixed(2)} {item.unit}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#f0f9ff', borderTop: '2px solid #bae6fd' }}>
+                      <td colSpan={3} style={{ padding: '10px 12px', fontWeight: 700, fontSize: 11.5, color: '#0c4a6e' }}>
+                        TOTAL — {filteredEntries.length} Return{filteredEntries.length !== 1 ? 's' : ''}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontWeight: 700, color: '#374151' }}>
+                        {filteredEntries.reduce((s, e) => s + parseInt(e.item_count || 0), 0)} items
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>{businessInfo.business_name || 'Business'} — Confidential</span>
+                <span style={{ fontSize: 9.5, color: '#cbd5e1' }}>Printed: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Print styles ──────────────────────────────────────────── */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          .print-preview-overlay {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            right: 0 !important; bottom: 0 !important;
+            background: #fff !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          #print-document {
+            box-shadow: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

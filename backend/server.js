@@ -516,15 +516,6 @@ if (oldAdmin) {
   console.log('Migrated admin@butchery.com → admin');
 }
 
-const userCount = db.prepare('SELECT COUNT(*) AS cnt FROM users').get();
-if (userCount.cnt === 0) {
-  const hashed = bcrypt.hashSync('admin123', 10);
-  db.prepare(
-    `INSERT INTO users (first_name, last_name, email, password, role, permissions)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run('Admin', 'User', 'admin', hashed, 'Administrator', '[]');
-  console.log('Default admin created  →  admin / admin123');
-}
 
 console.log('Database schema ready');
 

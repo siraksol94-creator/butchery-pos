@@ -70,10 +70,8 @@ router.get('/account-status', (req, res) => {
 // First-time registration — no auth required, only works if no users exist
 router.post('/register-first', async (req, res) => {
   try {
-    const users = db.prepare('SELECT id, email FROM users WHERE deleted_at IS NULL').all();
-    if (users.length === 1 && users[0].email === 'admin@butchery.com') {
-      db.prepare('DELETE FROM users WHERE id = ?').run(users[0].id);
-    } else if (users.length > 0) {
+    const users = db.prepare('SELECT id FROM users WHERE deleted_at IS NULL').all();
+    if (users.length > 0) {
       return res.status(403).json({ error: 'Account already exists. Please log in.' });
     }
     const { firstName, lastName, email, password, phone } = req.body;
