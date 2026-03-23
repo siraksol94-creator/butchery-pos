@@ -25,8 +25,19 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
   const [firstName, setFirstName]         = useState('');
   const [lastName, setLastName]           = useState('');
   const [adminEmail, setAdminEmail]       = useState('');
+  const [adminPhone, setAdminPhone]       = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
+  const [adminPermissions, setAdminPermissions] = useState([]);
+
+  const ALL_PERMISSIONS = ['POS','Sales','Stock','GRN','SIV','Reports','Accounting','Customers','Suppliers','Full Access'];
+  const togglePermission = (perm) => {
+    setAdminPermissions(prev =>
+      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+    );
+  };
 
   // Join Branch
   const [branchCode, setBranchCode]         = useState('');
@@ -91,13 +102,17 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
       setError('Passwords do not match');
       return;
     }
+    if (adminPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const r = await fetch('/api/auth/register-first', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firstName, lastName, email: adminEmail, password: adminPassword }),
+        body:    JSON.stringify({ firstName, lastName, email: adminEmail, password: adminPassword, phone: adminPhone, permissions: adminPermissions }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to create account');
@@ -296,35 +311,78 @@ const Setup = ({ onComplete, startAtCreateAdmin = false }) => {
 
   // ── Create Admin (Step 2) ─────────────────────────────────────────────────
   if (mode === 'createAdmin') {
+    const pwInputStyle = { ...inputStyle, paddingRight: 44 };
+    const eyeBtn = { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#6b7280', padding: 0 };
+    const readonlyStyle = { ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'default' };
+    const chipStyle = (active) => ({
+      display: 'inline-block', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: 'pointer', margin: '3px',
+      background: active ? '#dc2626' : '#f3f4f6', color: active ? '#fff' : '#374151',
+      border: active ? '1px solid #dc2626' : '1px solid #e5e7eb',
+    });
     return (
       <div style={pageStyle}>
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, maxWidth: 500 }}>
           {logo}
           <div style={{ background: '#fff1f1', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 24, fontSize: 13, color: '#dc2626' }}>
             {startAtCreateAdmin ? 'Create your Administrator account to continue' : 'Step 2 of 2 — Create your Administrator account'}
           </div>
           <form onSubmit={handleCreateAdmin}>
+            {/* Name row */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>First Name</label>
+                <label style={labelStyle}>First Name *</label>
                 <input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="John" style={inputStyle} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Last Name</label>
+                <label style={labelStyle}>Last Name *</label>
                 <input type="text" required value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Doe" style={inputStyle} />
               </div>
             </div>
+            {/* Username */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Username</label>
+              <label style={labelStyle}>Username *</label>
               <input type="text" required value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="e.g. solomon or admin" style={inputStyle} />
             </div>
+            {/* Phone */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Password</label>
-              <input type="password" required value={adminPassword} onChange={e => setAdminPassword(e.target.value)} placeholder="Min. 6 characters" style={inputStyle} />
+              <label style={labelStyle}>Phone</label>
+              <input type="text" value={adminPhone} onChange={e => setAdminPhone(e.target.value)} placeholder="e.g. +251 912 345 678" style={inputStyle} />
             </div>
+            {/* Password */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Password *</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} required value={adminPassword} onChange={e => setAdminPassword(e.target.value)} placeholder="Min. 6 characters" style={pwInputStyle} />
+                <button type="button" style={eyeBtn} onClick={() => setShowPassword(v => !v)}>{showPassword ? '🙈' : '👁️'}</button>
+              </div>
+            </div>
+            {/* Confirm Password */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Confirm Password *</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showConfirm ? 'text' : 'password'} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" style={pwInputStyle} />
+                <button type="button" style={eyeBtn} onClick={() => setShowConfirm(v => !v)}>{showConfirm ? '🙈' : '👁️'}</button>
+              </div>
+            </div>
+            {/* Role — read-only */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Role</label>
+              <input type="text" value="Administrator" readOnly style={readonlyStyle} />
+            </div>
+            {/* Permissions */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Permissions</label>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', background: '#fafafa' }}>
+                {ALL_PERMISSIONS.map(p => (
+                  <span key={p} style={chipStyle(adminPermissions.includes(p))} onClick={() => togglePermission(p)}>{p}</span>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Click to toggle. Leave empty for no module restrictions.</div>
+            </div>
+            {/* Status — read-only */}
             <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>Confirm Password</label>
-              <input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" style={inputStyle} />
+              <label style={labelStyle}>Status</label>
+              <input type="text" value="Active" readOnly style={{ ...readonlyStyle, color: '#16a34a' }} />
             </div>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#dc2626' }}>{error}</div>}
             <button type="submit" disabled={loading} style={primaryBtn(loading)}>

@@ -70,18 +70,22 @@ router.get('/account-status', (req, res) => {
 // First-time registration — no auth required, only works if no users exist
 router.post('/register-first', async (req, res) => {
   try {
+    // Delete any auto-created default admin so fresh installs can register
+    db.prepare("DELETE FROM users WHERE (email = 'admin' OR email = 'admin@butchery.com') AND role = 'Administrator'").run();
+
     const users = db.prepare('SELECT id FROM users WHERE deleted_at IS NULL').all();
     if (users.length > 0) {
       return res.status(403).json({ error: 'Account already exists. Please log in.' });
     }
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, permissions } = req.body;
     if (!firstName || !lastName || !email || !password)
       return res.status(400).json({ error: 'First name, last name, email and password are required.' });
     const hashedPassword = await bcrypt.hash(password, 10);
     const { deviceId, tenantId } = syncConfig.getConfig();
+    const permissionsJson = JSON.stringify(Array.isArray(permissions) ? permissions : []);
     const info = db.prepare(
-      'INSERT INTO users (first_name, last_name, email, password, phone, role, sync_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,0)'
-    ).run(firstName, lastName, email, hashedPassword, phone || '', 'Administrator', randomUUID(), deviceId);
+      'INSERT INTO users (first_name, last_name, email, password, phone, role, permissions, sync_id, device_id, synced) VALUES (?,?,?,?,?,?,?,?,?,0)'
+    ).run(firstName, lastName, email, hashedPassword, phone || '', 'Administrator', permissionsJson, randomUUID(), deviceId);
     const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     const token = jwt.sign(
       { id: newUser.id, email: newUser.email, role: newUser.role, name: `${newUser.first_name} ${newUser.last_name}`, tenantId: tenantId || 'local-only', webAccess: false },
