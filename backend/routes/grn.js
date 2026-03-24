@@ -82,16 +82,16 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
     const suppliers = db.prepare('SELECT COUNT(DISTINCT supplier_sync_id) AS cnt FROM grn WHERE deleted_at IS NULL AND tenant_id = ?').get(tenantId);
     const unpaid = db.prepare(`
       WITH supplier_paid AS (
-        SELECT s.id AS supplier_id, COALESCE(SUM(ap.amount), 0) AS total_paid
+        SELECT s.sync_id AS supplier_sync_id, COALESCE(SUM(ap.amount), 0) AS total_paid
         FROM suppliers s
-        LEFT JOIN ap_payments ap ON ap.supplier_id = s.id AND ap.deleted_at IS NULL
+        LEFT JOIN ap_payments ap ON ap.supplier_sync_id = s.sync_id AND ap.deleted_at IS NULL
         WHERE s.deleted_at IS NULL AND s.tenant_id = ?
-        GROUP BY s.id
+        GROUP BY s.sync_id
       ),
       grn_cumulative AS (
         SELECT g.*,
                SUM(g.total_amount) OVER (
-                 PARTITION BY g.supplier_id
+                 PARTITION BY g.supplier_sync_id
                  ORDER BY g.date ASC, g.id ASC
                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                ) AS cumulative_amount
@@ -100,7 +100,7 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
       )
       SELECT COUNT(*) AS cnt
       FROM grn_cumulative gc
-      LEFT JOIN supplier_paid sp ON sp.supplier_id = gc.supplier_id
+      LEFT JOIN supplier_paid sp ON sp.supplier_sync_id = gc.supplier_sync_id
       WHERE COALESCE(sp.total_paid, 0) < gc.cumulative_amount
     `).get(tenantId, tenantId);
 

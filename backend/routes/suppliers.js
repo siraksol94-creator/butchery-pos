@@ -17,9 +17,9 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
         FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
       ) g ON s.sync_id = g.supplier_sync_id
       LEFT JOIN (
-        SELECT supplier_id, SUM(amount) AS total_paid
-        FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_id
-      ) a ON s.id = a.supplier_id
+        SELECT supplier_sync_id, SUM(amount) AS total_paid
+        FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_sync_id
+      ) a ON s.sync_id = a.supplier_sync_id
       WHERE s.deleted_at IS NULL AND s.tenant_id = ? ORDER BY s.name
     `).all(req.user.tenantId);
     res.json(rows);
@@ -37,7 +37,7 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
       SELECT COALESCE(SUM(COALESCE(g.total_purchases,0) - COALESCE(a.total_paid,0)), 0) AS total
       FROM suppliers s
       LEFT JOIN (SELECT supplier_sync_id, SUM(total_amount) AS total_purchases FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id) g ON s.sync_id = g.supplier_sync_id
-      LEFT JOIN (SELECT supplier_id, SUM(amount) AS total_paid FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_id) a ON s.id = a.supplier_id
+      LEFT JOIN (SELECT supplier_sync_id, SUM(amount) AS total_paid FROM ap_payments WHERE deleted_at IS NULL GROUP BY supplier_sync_id) a ON s.sync_id = a.supplier_sync_id
       WHERE s.deleted_at IS NULL AND s.tenant_id = ?
     `).get(tenantId);
     res.json({

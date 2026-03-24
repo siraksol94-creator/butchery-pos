@@ -10,7 +10,7 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
     const { from, to, supplier_id } = req.query;
     let sql = `SELECT ap.*, s.name AS supplier_name_resolved
                FROM ap_payments ap
-               LEFT JOIN suppliers s ON s.id = ap.supplier_id
+               LEFT JOIN suppliers s ON s.sync_id = ap.supplier_sync_id
                WHERE ap.deleted_at IS NULL AND ap.tenant_id = ?`;
     const params = [req.user.tenantId];
     if (from) { sql += ' AND ap.date >= ?'; params.push(from); }
