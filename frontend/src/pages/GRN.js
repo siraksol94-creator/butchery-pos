@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN, createApPayment } from '../services/api';
+import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN, deleteGRN, createApPayment } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { FiPlus, FiFileText, FiCalendar, FiUsers, FiClock, FiX, FiTrash2, FiPrinter, FiSearch, FiChevronDown, FiChevronUp, FiPackage, FiEdit2, FiEye, FiDollarSign } from 'react-icons/fi';
 
@@ -161,6 +161,23 @@ const GRN = () => {
       alert('Failed to load GRN details.');
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const handleDeleteFromView = async () => {
+    if (!window.confirm(`Delete GRN ${viewGRN.grn_number}? This will reverse the stock.`)) return;
+    try {
+      await deleteGRN(viewGRN.id);
+      setViewGRN(null);
+      fetchData();
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Failed to delete GRN.';
+      const violations = err.response?.data?.violations;
+      if (violations?.length) {
+        alert(msg + '\n\n' + violations.map(v => `• ${v.product_name}: needs ${v.grn_qty}, only ${v.current_stock} in stock`).join('\n'));
+      } else {
+        alert(msg);
+      }
     }
   };
 
@@ -837,6 +854,12 @@ const GRN = () => {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
                 >
                   <FiEdit2 size={13} /> Edit
+                </button>
+                <button
+                  onClick={handleDeleteFromView}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  <FiTrash2 size={13} /> Delete
                 </button>
                 <button
                   onClick={() => setViewGRN(null)}

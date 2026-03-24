@@ -53,7 +53,10 @@ router.get('/licenses', authMiddleware, (req, res) => {
   const licenses = db.prepare(`
     SELECT l.*,
       (SELECT COUNT(*) FROM sync_config sc
-       WHERE sc.key LIKE 'branch:' || l.tenant_id || ':%') AS branch_count
+       WHERE sc.key LIKE 'branch:' || l.tenant_id || ':%') AS branch_count,
+      (SELECT GROUP_CONCAT(sc.value || ' [' || UPPER(SUBSTR(REPLACE(sc.key, 'branch:' || l.tenant_id || ':', ''), 1, 8)) || ']', ', ')
+       FROM sync_config sc
+       WHERE sc.key LIKE 'branch:' || l.tenant_id || ':%') AS branch_codes
     FROM licenses l ORDER BY l.created_at DESC
   `).all();
   res.json(licenses);

@@ -215,7 +215,7 @@ router.put('/:id', auth, (req, res) => {
       const grnSyncId = grnRecord?.sync_id;
 
       db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='grn' AND deleted_at IS NULL").run(grnSyncId);
-      db.prepare('DELETE FROM grn_items WHERE grn_sync_id=?').run(grnSyncId);
+      db.prepare("UPDATE grn_items SET deleted_at=datetime('now'), synced=0 WHERE grn_sync_id=? AND deleted_at IS NULL").run(grnSyncId);
 
       for (const item of validItems) {
         const qty = parseFloat(item.quantity);
@@ -248,7 +248,8 @@ router.get('/:id', auth, readOnlyGuard, (req, res) => {
       `SELECT gi.*, p.name AS product_name
        FROM grn_items gi
        LEFT JOIN products p ON gi.product_sync_id = p.sync_id
-       WHERE gi.grn_sync_id = (SELECT sync_id FROM grn WHERE id = ? AND tenant_id = ?)`
+       WHERE gi.grn_sync_id = (SELECT sync_id FROM grn WHERE id = ? AND tenant_id = ?)
+         AND gi.deleted_at IS NULL`
     ).all(req.params.id, req.user.tenantId);
     res.json({ ...grn, items });
   } catch (error) {
