@@ -28,10 +28,12 @@ router.post('/', auth, (req, res) => {
     if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Amount is required.' });
     const { tenantId, branchId, deviceId } = syncConfig.getConfig();
     const paymentNum = syncConfig.generateNumber('APR', 'ap_payments');
+    const supplier = supplier_id ? db.prepare('SELECT sync_id FROM suppliers WHERE id = ?').get(supplier_id) : null;
+    const supplierSyncId = supplier?.sync_id || null;
     const info = db.prepare(`
-      INSERT INTO ap_payments (payment_number, supplier_id, supplier_name, amount, description, date, paid_from, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
-    `).run(paymentNum, supplier_id || null, supplier_name || null, parseFloat(amount),
+      INSERT INTO ap_payments (payment_number, supplier_id, supplier_sync_id, supplier_name, amount, description, date, paid_from, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))
+    `).run(paymentNum, supplier_id || null, supplierSyncId, supplier_name || null, parseFloat(amount),
            description || null, date || new Date().toISOString().split('T')[0],
            paid_from || 'Main cashier', req.user.id,
            randomUUID(), tenantId, branchId, deviceId);

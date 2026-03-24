@@ -458,6 +458,10 @@ db.exec(`
   addCol('grn', 'supplier_sync_id', 'TEXT');
   db.prepare(`UPDATE grn SET supplier_sync_id = (SELECT sync_id FROM suppliers WHERE id = grn.supplier_id) WHERE supplier_sync_id IS NULL AND supplier_id IS NOT NULL`).run();
 
+  // Add supplier_sync_id to ap_payments
+  addCol('ap_payments', 'supplier_sync_id', 'TEXT');
+  db.prepare(`UPDATE ap_payments SET supplier_sync_id = (SELECT sync_id FROM suppliers WHERE id = ap_payments.supplier_id) WHERE supplier_sync_id IS NULL AND supplier_id IS NOT NULL`).run();
+
   // Add production_sync_id to production_inputs and production_outputs for cross-device DELETE
   addCol('production_inputs',  'production_sync_id', 'TEXT');
   addCol('production_outputs', 'production_sync_id', 'TEXT');

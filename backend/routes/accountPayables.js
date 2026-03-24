@@ -34,13 +34,13 @@ router.get('/', auth, readOnlyGuard, (req, res) => {
         GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT supplier_id,
+        SELECT supplier_sync_id,
           SUM(amount) AS total_paid,
           COUNT(*) AS ap_count
         FROM ap_payments
         WHERE deleted_at IS NULL
-        GROUP BY supplier_id
-      ) ap_totals ON s.id = ap_totals.supplier_id
+        GROUP BY supplier_sync_id
+      ) ap_totals ON s.sync_id = ap_totals.supplier_sync_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL AND s.tenant_id = ?
       ORDER BY balance DESC
     `).all(req.user.tenantId);
@@ -65,10 +65,10 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
         FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT supplier_id, SUM(amount) AS total_paid
+        SELECT supplier_sync_id, SUM(amount) AS total_paid
         FROM ap_payments WHERE deleted_at IS NULL
-        GROUP BY supplier_id
-      ) ap_totals ON s.id = ap_totals.supplier_id
+        GROUP BY supplier_sync_id
+      ) ap_totals ON s.sync_id = ap_totals.supplier_sync_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL AND s.tenant_id = ?
     `).get(tenantId);
 
@@ -80,10 +80,10 @@ router.get('/stats', auth, readOnlyGuard, (req, res) => {
         FROM grn WHERE deleted_at IS NULL GROUP BY supplier_sync_id
       ) grn_totals ON s.sync_id = grn_totals.supplier_sync_id
       LEFT JOIN (
-        SELECT supplier_id, SUM(amount) AS total_paid
+        SELECT supplier_sync_id, SUM(amount) AS total_paid
         FROM ap_payments WHERE deleted_at IS NULL
-        GROUP BY supplier_id
-      ) ap_totals ON s.id = ap_totals.supplier_id
+        GROUP BY supplier_sync_id
+      ) ap_totals ON s.sync_id = ap_totals.supplier_sync_id
       WHERE s.status = 'Active' AND s.deleted_at IS NULL AND s.tenant_id = ?
         AND grn_totals.total_amount - COALESCE(ap_totals.total_paid, 0) > 0
     `).get(tenantId);
