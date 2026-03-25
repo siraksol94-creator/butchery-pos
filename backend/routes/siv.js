@@ -146,7 +146,7 @@ router.put('/:id', auth, (req, res) => {
       const sivRecord = db.prepare('SELECT sync_id FROM siv WHERE id=?').get(sivId);
       const sivSyncId = sivRecord?.sync_id;
 
-      db.prepare('DELETE FROM siv_items WHERE siv_sync_id=?').run(sivSyncId);
+      db.prepare("UPDATE siv_items SET deleted_at=datetime('now'), synced=0 WHERE siv_sync_id=? AND deleted_at IS NULL").run(sivSyncId);
       db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='siv' AND deleted_at IS NULL").run(sivSyncId);
 
       for (const item of items) {

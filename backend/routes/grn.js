@@ -295,7 +295,7 @@ router.delete('/:id', auth, (req, res) => {
       }
 
       db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='grn' AND deleted_at IS NULL").run(grn.sync_id);
-      db.prepare('DELETE FROM grn_items WHERE grn_sync_id = ?').run(grn.sync_id);
+      db.prepare("UPDATE grn_items SET deleted_at=datetime('now'), synced=0 WHERE grn_sync_id=? AND deleted_at IS NULL").run(grn.sync_id);
       db.prepare("UPDATE grn SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(id);
       return null;
     })();
