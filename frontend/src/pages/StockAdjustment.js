@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getStoreInventory } from '../services/api';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
-import { FiPlus, FiTrendingUp, FiTrendingDown, FiCalendar, FiPackage, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrendingUp, FiTrendingDown, FiCalendar, FiPackage, FiX, FiTrash2 } from 'react-icons/fi';
 
 const StockAdjustment = () => {
   const { t } = useLanguage();
@@ -77,6 +77,17 @@ const StockAdjustment = () => {
     }
   };
 
+  const handleDelete = async (adj) => {
+    if (!window.confirm(`Delete adjustment ${adj.adjustment_number}? This will reverse the stock change.`)) return;
+    try {
+      await api.delete(`/stock-adjustments/${adj.id}`);
+      await fetchData();
+      fetchProducts();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete adjustment.');
+    }
+  };
+
   const selectedProduct = products.find(p => p.id === parseInt(productId));
   const formatDate = d => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -129,6 +140,7 @@ const StockAdjustment = () => {
                 <th>{t('quantity')}</th>
                 <th>{t('reason')}</th>
                 <th>By</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -149,6 +161,21 @@ const StockAdjustment = () => {
                   </td>
                   <td>{adj.reason || '—'}</td>
                   <td>{adj.created_by_name || '—'}</td>
+                  <td>
+                    <button
+                      onClick={() => handleDelete(adj)}
+                      title="Delete"
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: '#9ca3af', padding: 4, borderRadius: 6,
+                        display: 'inline-flex', alignItems: 'center', transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+                    >
+                      <FiTrash2 size={15} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

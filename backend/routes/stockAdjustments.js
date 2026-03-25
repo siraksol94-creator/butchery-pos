@@ -87,4 +87,21 @@ router.post('/', auth, (req, res) => {
   }
 });
 
+router.delete('/:id', auth, (req, res) => {
+  try {
+    db.transaction(() => {
+      const adj = db.prepare('SELECT * FROM stock_adjustments WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+      if (!adj) throw Object.assign(new Error('Adjustment not found.'), { status: 404 });
+
+      const stockDelta = adj.adjustment_type === 'increase' ? -adj.quantity : adj.quantity;
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='adjustment' AND deleted_at IS NULL").run(adj.sync_id);
+      db.prepare("UPDATE products SET current_stock = current_stock + ?, updated_at=datetime('now'), synced=0 WHERE id=?").run(stockDelta, adj.product_id);
+      db.prepare("UPDATE stock_adjustments SET deleted_at=datetime('now'), synced=0 WHERE id=?").run(adj.id);
+    })();
+    res.json({ message: 'Adjustment deleted.' });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

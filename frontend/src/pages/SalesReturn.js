@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getSalesReturns, getSalesReturnStats, getSalesReturnNotes, createSalesReturn, deleteSalesReturn, getSalesReturn, getInventory, getSettings } from '../services/api';
-import { FiPlus, FiTrash2, FiX, FiEye, FiCornerDownLeft, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
+import { getSalesReturns, getSalesReturnStats, getSalesReturnNotes, createSalesReturn, updateSalesReturn, deleteSalesReturn, getSalesReturn, getInventory, getSettings } from '../services/api';
+import { FiPlus, FiTrash2, FiX, FiEye, FiCornerDownLeft, FiAlertTriangle, FiPrinter, FiEdit2 } from 'react-icons/fi';
 
 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -83,6 +83,21 @@ const SalesReturn = () => {
   const openDelete = (entry) => { setSelected(entry); setModal('delete'); };
   const closeModal = () => { setModal(null); setSelected(null); setDetail(null); setError(''); };
 
+  const openEdit = async (entry) => {
+    setSelected(entry);
+    setError('');
+    try {
+      const res = await getSalesReturn(entry.id);
+      const d = res.data;
+      setDate(d.date ? d.date.split('T')[0] : todayStr);
+      setNotes(d.notes || '');
+      setItems((d.items || []).map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: String(i.quantity), unit: i.unit || 'kg', sales_balance: 0 })));
+      setSearch((d.items || []).map(() => ''));
+      setOpen((d.items || []).map(() => false));
+    } catch { setError('Failed to load entry.'); }
+    setModal('edit');
+  };
+
   const addItem    = () => setItems(prev => [...prev, { ...emptyItem }]);
   const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
   const updateItem = (i, field, val) => setItems(prev => prev.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
@@ -108,7 +123,11 @@ const SalesReturn = () => {
     if (!valid.length) { setError('Add at least one item with a valid product and quantity.'); return; }
     setSaving(true); setError('');
     try {
-      await createSalesReturn({ date, notes, items: valid });
+      if (modal === 'edit') {
+        await updateSalesReturn(selected.id, { date, notes, items: valid });
+      } else {
+        await createSalesReturn({ date, notes, items: valid });
+      }
       await fetchAll();
       closeModal();
     } catch (err) {
@@ -225,6 +244,9 @@ const SalesReturn = () => {
                     <button onClick={() => openView(e)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <FiEye size={13} /> View
                     </button>
+                    <button onClick={() => openEdit(e)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                      <FiEdit2 size={13} /> Edit
+                    </button>
                     <button onClick={() => openDelete(e)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#fff1f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <FiTrash2 size={13} /> Delete
                     </button>
@@ -236,13 +258,13 @@ const SalesReturn = () => {
         </table>
       </div>
 
-      {/* ── Create Modal ── */}
-      {modal === 'create' && (
+      {/* ── Create / Edit Modal ── */}
+      {(modal === 'create' || modal === 'edit') && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px 16px', overflowY: 'auto' }}>
           <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Sales Return</h3>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{modal === 'edit' ? 'Edit Sales Return' : 'New Sales Return'}</h3>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>Return items from the sales floor back to the store</p>
               </div>
               <button onClick={closeModal} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280' }}><FiX size={18} /></button>
@@ -366,7 +388,7 @@ const SalesReturn = () => {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button onClick={closeModal} style={{ padding: '9px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
                 <button onClick={handleSave} disabled={saving} style={{ padding: '9px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-                  {saving ? 'Saving...' : 'Save Return'}
+                  {saving ? 'Saving...' : modal === 'edit' ? 'Update Return' : 'Save Return'}
                 </button>
               </div>
             </div>
@@ -406,6 +428,12 @@ const SalesReturn = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, padding: '14px 22px', borderTop: '1px solid #f1f5f9', justifyContent: 'flex-end' }}>
+              <button onClick={closeModal} style={{ padding: '9px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
+              <button onClick={() => { closeModal(); openEdit(selected); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                <FiEdit2 size={14} /> Edit
+              </button>
             </div>
           </div>
         </div>

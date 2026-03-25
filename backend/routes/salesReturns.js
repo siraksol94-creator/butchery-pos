@@ -114,6 +114,44 @@ router.get('/:id', auth, readOnlyGuard, (req, res) => {
   }
 });
 
+// PUT /api/sales-returns/:id
+router.put('/:id', auth, (req, res) => {
+  try {
+    const { date, notes, items } = req.body;
+    const id = parseInt(req.params.id);
+    if (!items?.length) return res.status(400).json({ error: 'At least one item is required.' });
+    const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+    const returnDate = date || new Date().toISOString().split('T')[0];
+
+    db.transaction(() => {
+      const ret = db.prepare('SELECT * FROM sales_returns WHERE id = ? AND deleted_at IS NULL').get(id);
+      if (!ret) throw Object.assign(new Error('Not found'), { status: 404 });
+
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='sales_return' AND deleted_at IS NULL").run(ret.sync_id);
+      db.prepare("UPDATE sales_return_items SET deleted_at=datetime('now'), synced=0 WHERE return_sync_id=? AND deleted_at IS NULL").run(ret.sync_id);
+
+      db.prepare("UPDATE sales_returns SET date=?, notes=?, total_items=?, updated_at=datetime('now'), synced=0 WHERE id=?")
+        .run(returnDate, notes || null, items.length, id);
+
+      for (const item of items) {
+        const qty = parseFloat(item.quantity);
+        const prod = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(item.product_id);
+        const productSyncId = prod?.sync_id || null;
+        db.prepare(`INSERT INTO sales_return_items (return_id, return_sync_id, product_id, product_sync_id, quantity, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`)
+          .run(id, ret.sync_id, item.product_id, productSyncId, qty, randomUUID(), tenantId, branchId, deviceId);
+        db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`)
+          .run(item.product_id, productSyncId, 'sales', 'sales_return', -qty, id, 'sales_return', notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, ret.sync_id);
+        db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`)
+          .run(item.product_id, productSyncId, 'store', 'sales_return', qty, id, 'sales_return', notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, ret.sync_id);
+      }
+    })();
+
+    res.json(db.prepare('SELECT * FROM sales_returns WHERE id = ?').get(id));
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/sales-returns/:id
 router.delete('/:id', auth, (req, res) => {
   try {

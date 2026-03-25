@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, getSettings } from '../services/api';
-import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEdit2, FiEye, FiPrinter, FiX } from 'react-icons/fi';
+import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, deletePaymentVoucher, getSettings } from '../services/api';
+import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEdit2, FiEye, FiPrinter, FiX, FiTrash2 } from 'react-icons/fi';
 
 const getCategoryColor = (cat) => {
   const map = { 'Supplier': 'badge-blue', 'Utilities': 'badge-orange', 'Salaries': 'badge-purple', 'Rent': 'badge-green', 'Other': 'badge-gray' };
@@ -80,6 +80,17 @@ const PaymentVoucher = () => {
     });
     setFormError('');
     setShowForm(true);
+  };
+
+  const handleDelete = async (v) => {
+    if (!window.confirm(`Delete voucher ${v.voucher_number}? This cannot be undone.`)) return;
+    try {
+      await deletePaymentVoucher(v.id);
+      setViewVoucher(null);
+      await fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete voucher.');
+    }
   };
 
   const handleSave = async () => {
@@ -257,6 +268,19 @@ const PaymentVoucher = () => {
                     >
                       <FiEdit2 size={15} />
                     </button>
+                    <button
+                      onClick={() => handleDelete(v)}
+                      title="Delete"
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: '#6b7280', padding: 6, borderRadius: 6,
+                        display: 'inline-flex', alignItems: 'center', transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
+                    >
+                      <FiTrash2 size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -332,6 +356,13 @@ const PaymentVoucher = () => {
             {/* Footer */}
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setViewVoucher(null)}>Close</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => handleDelete(viewVoucher)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#dc2626', color: '#fff', border: 'none' }}
+              >
+                <FiTrash2 size={14} /> Delete
+              </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => { openEdit(viewVoucher); setViewVoucher(null); }}

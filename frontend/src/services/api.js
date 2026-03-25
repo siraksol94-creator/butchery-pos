@@ -117,6 +117,7 @@ export const getPaymentVouchers = (params) => api.get('/payment-vouchers', { par
 export const getPaymentVoucherStats = () => api.get('/payment-vouchers/stats');
 export const createPaymentVoucher = (data) => api.post('/payment-vouchers', data);
 export const updatePaymentVoucher = (id, data) => api.put(`/payment-vouchers/${id}`, data);
+export const deletePaymentVoucher = (id) => api.delete(`/payment-vouchers/${id}`);
 
 // Cash Book
 export const getCashBook = (params) => api.get('/cash-book', { params });
@@ -170,6 +171,7 @@ export const getProductions = () => api.get('/production');
 export const getProductionStats = () => api.get('/production/stats');
 export const getProduction = (id) => api.get(`/production/${id}`);
 export const createProduction = (data) => api.post('/production', data);
+export const updateProduction = (id, data) => api.put(`/production/${id}`, data);
 export const deleteProduction = (id) => api.delete(`/production/${id}`);
 
 // Sales Returns
@@ -178,6 +180,7 @@ export const getSalesReturnStats = () => api.get('/sales-returns/stats');
 export const getSalesReturnNotes = () => api.get('/sales-returns/notes');
 export const getSalesReturn = (id) => api.get(`/sales-returns/${id}`);
 export const createSalesReturn = (data) => api.post('/sales-returns', data);
+export const updateSalesReturn = (id, data) => api.put(`/sales-returns/${id}`, data);
 export const deleteSalesReturn = (id) => api.delete(`/sales-returns/${id}`);
 
 export default api;

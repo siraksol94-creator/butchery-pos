@@ -74,4 +74,14 @@ router.put('/:id', auth, (req, res) => {
   }
 });
 
+router.delete('/:id', auth, (req, res) => {
+  try {
+    const info = db.prepare("UPDATE payment_vouchers SET deleted_at=datetime('now'), synced=0 WHERE id=? AND deleted_at IS NULL").run(req.params.id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Voucher not found' });
+    res.json({ message: 'Payment voucher deleted.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getProductions, getProductionStats, createProduction, deleteProduction, getProduction, getSettings } from '../services/api';
+import { getProductions, getProductionStats, createProduction, updateProduction, deleteProduction, getProduction, getSettings } from '../services/api';
 import { getStoreInventory } from '../services/api';
-import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter, FiEdit2 } from 'react-icons/fi';
 
 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -98,6 +98,24 @@ const Production = () => {
   const openDelete = (entry) => { setSelected(entry); setModal('delete'); };
   const closeModal = () => { setModal(null); setSelected(null); setDetail(null); setError(''); };
 
+  const openEdit = async (entry) => {
+    setSelected(entry);
+    setError('');
+    try {
+      const res = await getProduction(entry.id);
+      const d = res.data;
+      setDate(d.date ? d.date.split('T')[0] : todayStr);
+      setNotes(d.notes || '');
+      setInputs((d.inputs || []).map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: String(i.quantity), unit_cost: String(i.unit_cost), unit: i.unit || 'kg', store_balance: 0 })));
+      setOutputs((d.outputs || []).map(o => ({ product_id: o.product_id, product_name: o.product_name, quantity: String(o.quantity), unit: o.unit || 'kg' })));
+      setInputSearch((d.inputs || []).map(() => ''));
+      setOutputSearch((d.outputs || []).map(() => ''));
+      setInputOpen((d.inputs || []).map(() => false));
+      setOutputOpen((d.outputs || []).map(() => false));
+    } catch { setError('Failed to load entry.'); }
+    setModal('edit');
+  };
+
   // ── Inputs management ───────────────────────────────────────────────────────
   const addInput = () => setInputs(prev => [...prev, { ...emptyInput }]);
   const removeInput = (i) => setInputs(prev => prev.filter((_, idx) => idx !== i));
@@ -148,7 +166,11 @@ const Production = () => {
     setSaving(true);
     setError('');
     try {
-      await createProduction({ date, notes, inputs: validInputs, outputs: validOutputs });
+      if (modal === 'edit') {
+        await updateProduction(selected.id, { date, notes, inputs: validInputs, outputs: validOutputs });
+      } else {
+        await createProduction({ date, notes, inputs: validInputs, outputs: validOutputs });
+      }
       await fetchAll();
       closeModal();
     } catch (err) {
@@ -281,6 +303,9 @@ const Production = () => {
                     <button onClick={() => openView(e)} title="View details" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <FiEye size={13} /> View
                     </button>
+                    <button onClick={() => openEdit(e)} title="Edit" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                      <FiEdit2 size={13} /> Edit
+                    </button>
                     <button onClick={() => openDelete(e)} title="Delete" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#fff1f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                       <FiTrash2 size={13} /> Delete
                     </button>
@@ -292,13 +317,13 @@ const Production = () => {
         </table>
       </div>
 
-      {/* ── Create Modal ── */}
-      {modal === 'create' && (
+      {/* ── Create / Edit Modal ── */}
+      {(modal === 'create' || modal === 'edit') && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px 16px', overflowY: 'auto' }}>
           <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 780, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Production Entry</h3>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{modal === 'edit' ? 'Edit Production Entry' : 'New Production Entry'}</h3>
               <button onClick={closeModal} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280' }}><FiX size={18} /></button>
             </div>
 
@@ -503,7 +528,7 @@ const Production = () => {
             <div style={{ display: 'flex', gap: 10, padding: '16px 24px', borderTop: '1px solid #f1f5f9', justifyContent: 'flex-end' }}>
               <button onClick={closeModal} style={{ padding: '10px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14, color: '#374151', fontWeight: 500 }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} style={{ padding: '10px 24px', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700 }}>
-                {saving ? 'Saving...' : 'Save Production Entry'}
+                {saving ? 'Saving...' : modal === 'edit' ? 'Update Production Entry' : 'Save Production Entry'}
               </button>
             </div>
           </div>
@@ -569,6 +594,12 @@ const Production = () => {
                   {selected.notes && <div style={{ marginTop: 12, color: '#6b7280', fontSize: 13 }}>Notes: {selected.notes}</div>}
                 </>
               )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, padding: '14px 24px', borderTop: '1px solid #f1f5f9', justifyContent: 'flex-end' }}>
+              <button onClick={closeModal} style={{ padding: '9px 20px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
+              <button onClick={() => { closeModal(); openEdit(selected); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                <FiEdit2 size={14} /> Edit
+              </button>
             </div>
           </div>
         </div>

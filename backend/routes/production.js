@@ -140,6 +140,61 @@ router.post('/', auth, (req, res) => {
   }
 });
 
+// PUT /api/production/:id
+router.put('/:id', auth, (req, res) => {
+  try {
+    const { date, notes, inputs, outputs } = req.body;
+    const id = parseInt(req.params.id);
+    if (!inputs?.length) return res.status(400).json({ error: 'At least one input is required.' });
+    if (!outputs?.length) return res.status(400).json({ error: 'At least one output is required.' });
+
+    const result = db.transaction(() => {
+      const prod = db.prepare('SELECT * FROM production WHERE id = ? AND deleted_at IS NULL').get(id);
+      if (!prod) throw Object.assign(new Error('Not found'), { status: 404 });
+
+      const { tenantId, branchId, deviceId } = syncConfig.getConfig();
+      const prodDate = date || new Date().toISOString().split('T')[0];
+
+      db.prepare("UPDATE stock_movements SET deleted_at=datetime('now'), synced=0 WHERE reference_sync_id=? AND reference_type='production' AND deleted_at IS NULL").run(prod.sync_id);
+      db.prepare("UPDATE production_inputs SET deleted_at=datetime('now'), synced=0 WHERE production_sync_id=? AND deleted_at IS NULL").run(prod.sync_id);
+      db.prepare("UPDATE production_outputs SET deleted_at=datetime('now'), synced=0 WHERE production_sync_id=? AND deleted_at IS NULL").run(prod.sync_id);
+
+      const totalInputCost = inputs.reduce((sum, i) => sum + parseFloat(i.quantity) * parseFloat(i.unit_cost || 0), 0);
+      const totalOutputQty = outputs.reduce((sum, o) => sum + parseFloat(o.quantity), 0);
+      const costPerKg = totalOutputQty > 0 ? totalInputCost / totalOutputQty : 0;
+
+      db.prepare("UPDATE production SET date=?, notes=?, total_input_cost=?, cost_per_kg=?, total_output_qty=?, updated_at=datetime('now'), synced=0 WHERE id=?")
+        .run(prodDate, notes || null, totalInputCost, costPerKg, totalOutputQty, id);
+
+      for (const input of inputs) {
+        const qty = parseFloat(input.quantity);
+        const unitCost = parseFloat(input.unit_cost || 0);
+        const inputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(input.product_id);
+        const inputSyncId = inputProd?.sync_id || null;
+        db.prepare(`INSERT INTO production_inputs (production_id, production_sync_id, product_id, product_sync_id, quantity, unit_cost, total_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`)
+          .run(id, prod.sync_id, input.product_id, inputSyncId, qty, unitCost, qty * unitCost, randomUUID(), tenantId, branchId, deviceId);
+        db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`)
+          .run(input.product_id, inputSyncId, 'store', 'production_input', -qty, id, 'production', notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prod.sync_id);
+      }
+
+      for (const output of outputs) {
+        const qty = parseFloat(output.quantity);
+        const outputProd = db.prepare('SELECT sync_id FROM products WHERE id = ?').get(output.product_id);
+        const outputSyncId = outputProd?.sync_id || null;
+        db.prepare(`INSERT INTO production_outputs (production_id, production_sync_id, product_id, product_sync_id, quantity, allocated_cost_per_unit, total_allocated_cost, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'))`)
+          .run(id, prod.sync_id, output.product_id, outputSyncId, qty, costPerKg, qty * costPerKg, randomUUID(), tenantId, branchId, deviceId);
+        db.prepare(`INSERT INTO stock_movements (product_id, product_sync_id, location, movement_type, quantity, reference_id, reference_type, notes, created_by, sync_id, tenant_id, branch_id, device_id, synced, created_at, updated_at, reference_sync_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,datetime('now'),datetime('now'),?)`)
+          .run(output.product_id, outputSyncId, 'store', 'production_output', qty, id, 'production', notes || null, req.user.id, randomUUID(), tenantId, branchId, deviceId, prod.sync_id);
+      }
+
+      return db.prepare('SELECT * FROM production WHERE id = ?').get(id);
+    })();
+    res.json(result);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/production/:id
 router.delete('/:id', auth, (req, res) => {
   try {
