@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCashReceipts, getCashReceiptStats, createCashReceipt, updateCashReceipt, getSettings } from '../services/api';
 import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEye, FiEdit2, FiPrinter, FiX } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const getPaymentColor = (method) => {
   const map = { 'Cash': 'badge-green', 'Card': 'badge-blue', 'Check': 'badge-purple', 'Transfer': 'badge-orange' };
@@ -29,6 +30,13 @@ const CashReceipt = () => {
   // Edit
   const [editMode, setEditMode] = useState(false);
   const [editId,   setEditId]   = useState(null);
+
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const [form, setForm] = useState({
     received_from: '', description: '', payment_method: 'Cash', amount: '', date: todayStr,
@@ -84,6 +92,9 @@ const CashReceipt = () => {
     if (!form.received_from.trim()) return setFormError('Received From is required.');
     if (!form.amount || parseFloat(form.amount) <= 0) return setFormError('Amount must be greater than 0.');
 
+    if (editMode) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -95,11 +106,15 @@ const CashReceipt = () => {
       };
       if (editMode) {
         await updateCashReceipt(editId, payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('Cash Receipt updated successfully.');
       } else {
         await createCashReceipt(payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('Cash Receipt saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setFormError(err.response?.data?.error || 'Failed to save receipt.');
     } finally {
@@ -608,6 +623,7 @@ const CashReceipt = () => {
           }
         }
       `}</style>
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

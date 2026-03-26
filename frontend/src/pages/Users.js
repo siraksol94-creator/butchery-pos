@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getUsers, getUserStats, createUser, updateUser, deleteUser } from '../services/api';
 import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUsers, FiUserCheck, FiUserX, FiShield, FiX, FiEye, FiEyeOff, FiUser, FiMail, FiPhone, FiLock } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const ROLES = ['Administrator', 'Manager', 'Cashier', 'Staff'];
 const ALL_PERMISSIONS = ['POS', 'Sales', 'Stock', 'GRN', 'SIV', 'Reports', 'Accounting', 'Customers', 'Suppliers', 'Full Access'];
@@ -25,6 +26,12 @@ const Users = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchAll = async () => {
     try {
@@ -83,18 +90,25 @@ const Users = () => {
       setError('Password is required for new users.');
       return;
     }
+    if (modal === 'edit') {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     setError('');
     try {
       if (modal === 'add') {
         await createUser({ ...form });
+        await fetchAll();
+        closeModal();
+        showToast('User saved successfully.');
       } else {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
         await updateUser(selected.id, payload);
+        await fetchAll();
+        closeModal();
+        showToast('User updated successfully.');
       }
-      await fetchAll();
-      closeModal();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save. Please try again.');
     }
@@ -107,6 +121,7 @@ const Users = () => {
       await deleteUser(selected.id);
       await fetchAll();
       closeModal();
+      showToast('User deleted.', 'error');
     } catch {
       setError('Failed to delete user.');
     }
@@ -408,6 +423,7 @@ const Users = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

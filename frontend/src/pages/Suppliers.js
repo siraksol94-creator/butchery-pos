@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getSuppliers, getSupplierStats, createSupplier, updateSupplier, deleteSupplier } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { FiPlus, FiSearch, FiMapPin, FiPhone, FiMail, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const defaultStats = { totalSuppliers: 0, activeAccounts: 0, outstanding: 0 };
 const emptyForm = { name: '', type: '', phone: '', email: '', address: '', contact_person: '' };
@@ -16,6 +17,12 @@ const Suppliers = () => {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchData = async () => {
     try {
@@ -55,15 +62,22 @@ const Suppliers = () => {
   const handleSave = async () => {
     setError('');
     if (!form.name.trim()) return setError('Supplier name is required.');
+    if (editingId) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       if (editingId) {
         await updateSupplier(editingId, form);
+        setShowForm(false);
+        await fetchData();
+        showToast('Supplier updated successfully.');
       } else {
         await createSupplier(form);
+        setShowForm(false);
+        await fetchData();
+        showToast('Supplier saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save supplier.');
     } finally {
@@ -76,6 +90,7 @@ const Suppliers = () => {
     try {
       await deleteSupplier(supplier.id);
       await fetchData();
+      showToast('Supplier deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete supplier.');
     }
@@ -214,6 +229,7 @@ const Suppliers = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

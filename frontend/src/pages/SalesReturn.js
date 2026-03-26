@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSalesReturns, getSalesReturnStats, getSalesReturnNotes, createSalesReturn, updateSalesReturn, deleteSalesReturn, getSalesReturn, getInventory, getSettings } from '../services/api';
 import { FiPlus, FiTrash2, FiX, FiEye, FiCornerDownLeft, FiAlertTriangle, FiPrinter, FiEdit2 } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -27,6 +28,12 @@ const SalesReturn = () => {
   const [printItemsMap, setPrintItemsMap]         = useState({});
   const [printItemsLoading, setPrintItemsLoading] = useState(false);
   const [businessInfo, setBusinessInfo]           = useState({});
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const [date, setDate]   = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -121,15 +128,22 @@ const SalesReturn = () => {
     const valid = items.filter(r => r.product_id && parseFloat(r.quantity) > 0);
     if (!notes.trim()) { setError('Notes is required.'); return; }
     if (!valid.length) { setError('Add at least one item with a valid product and quantity.'); return; }
+    if (modal === 'edit') {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true); setError('');
     try {
       if (modal === 'edit') {
         await updateSalesReturn(selected.id, { date, notes, items: valid });
+        await fetchAll();
+        closeModal();
+        showToast('Sales Return updated successfully.');
       } else {
         await createSalesReturn({ date, notes, items: valid });
+        await fetchAll();
+        closeModal();
+        showToast('Sales Return saved successfully.');
       }
-      await fetchAll();
-      closeModal();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save sales return.');
     }
@@ -141,6 +155,7 @@ const SalesReturn = () => {
       await deleteSalesReturn(selected.id);
       await fetchAll();
       closeModal();
+      showToast('Sales Return deleted.', 'error');
     } catch { setError('Failed to delete.'); }
   };
 
@@ -633,6 +648,7 @@ const SalesReturn = () => {
           }
         }
       `}</style>
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

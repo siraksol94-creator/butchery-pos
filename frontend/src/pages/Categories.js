@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getCategories, createCategory, updateCategory, deleteCategory, deleteAllCategories, importCategories } from '../services/api';
 import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag, FiUpload, FiDownload, FiAlertTriangle } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const emptyForm = { name: '', color: '#6b7280' };
 
@@ -20,6 +21,12 @@ const Categories = () => {
   const [importMsg, setImportMsg] = useState('');
   const [importing, setImporting] = useState(false);
   const csvInputRef = useRef(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleDeleteAll = async () => {
     if (!window.confirm('Delete ALL categories? Products will be uncategorized. This cannot be undone.')) return;
@@ -87,15 +94,22 @@ const Categories = () => {
   const handleSave = async () => {
     setError('');
     if (!form.name.trim()) return setError('Category name is required.');
+    if (editingId) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       if (editingId) {
         await updateCategory(editingId, form);
+        setShowForm(false);
+        await fetchData();
+        showToast('Category updated successfully.');
       } else {
         await createCategory(form);
+        setShowForm(false);
+        await fetchData();
+        showToast('Category saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save category.');
     } finally {
@@ -108,6 +122,7 @@ const Categories = () => {
     try {
       await deleteCategory(cat.id);
       await fetchData();
+      showToast('Category deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete category.');
     }
@@ -462,6 +477,7 @@ const Categories = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

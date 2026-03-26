@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getPaymentVouchers, getPaymentVoucherStats, createPaymentVoucher, updatePaymentVoucher, deletePaymentVoucher, getSettings } from '../services/api';
 import { FiPlus, FiDollarSign, FiCalendar, FiFileText, FiEdit2, FiEye, FiPrinter, FiX, FiTrash2 } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const getCategoryColor = (cat) => {
   const map = { 'Supplier': 'badge-blue', 'Utilities': 'badge-orange', 'Salaries': 'badge-purple', 'Rent': 'badge-green', 'Other': 'badge-gray' };
@@ -17,6 +18,12 @@ const PaymentVoucher = () => {
   const [formError, setFormError] = useState('');
   const [editId, setEditId]     = useState(null);
   const [businessInfo, setBusinessInfo] = useState({ business_name: '', address: '', phone: '' });
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // View / Print
   const [viewVoucher, setViewVoucher] = useState(null);
@@ -88,6 +95,7 @@ const PaymentVoucher = () => {
       await deletePaymentVoucher(v.id);
       setViewVoucher(null);
       await fetchData();
+      showToast('Payment Voucher deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete voucher.');
     }
@@ -98,6 +106,9 @@ const PaymentVoucher = () => {
     if (!form.paid_to.trim()) return setFormError('Paid To is required.');
     if (!form.amount || parseFloat(form.amount) <= 0) return setFormError('Amount must be greater than 0.');
 
+    if (editId) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -110,11 +121,15 @@ const PaymentVoucher = () => {
       };
       if (editId) {
         await updatePaymentVoucher(editId, payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('Payment Voucher updated successfully.');
       } else {
         await createPaymentVoucher(payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('Payment Voucher saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setFormError(err.response?.data?.error || 'Failed to save voucher.');
     } finally {
@@ -713,6 +728,7 @@ const PaymentVoucher = () => {
           #pv-print-document { box-shadow: none !important; width: 100% !important; margin: 0 !important; }
         }
       `}</style>
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

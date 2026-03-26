@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSIVs, getSIVStats, getSIVItemsSummary, createSIV, updateSIV, getSIV, deleteSIV, getSIVItemBreakdown, getProducts, getSettings } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import Toast from '../components/Toast';
 import { FiPlus, FiFileText, FiCalendar, FiTrendingDown, FiClock, FiTrash2, FiX, FiPrinter, FiEye, FiEdit2, FiUpload, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 
 const defaultStats = { totalSIVs: 0, thisMonth: 0, totalValue: 0, pending: 0 };
@@ -85,6 +86,13 @@ const SIV = () => {
   const [itemsSummary, setItemsSummary] = useState([]);
   const [expandedItems, setExpandedItems] = useState({});   // product_id → true/false
   const [itemBreakdowns, setItemBreakdowns] = useState({}); // product_id → rows
+
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // ── Delete SIV ────────────────────────────────────────────────────
   const [deletingSIV, setDeletingSIV] = useState(false);
@@ -237,15 +245,22 @@ const SIV = () => {
         unit_price: parseFloat(i.unit_price) || 0,
       })),
     };
+    if (editMode) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       if (editMode) {
         await updateSIV(editId, payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('SIV updated successfully.');
       } else {
         await createSIV(payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('SIV saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setFormError(err.response?.data?.error || 'Failed to save SIV. Please try again.');
     } finally {
@@ -264,6 +279,7 @@ const SIV = () => {
       if (viewMode === 'by-item') {
         getSIVItemsSummary(filterFrom, filterTo).then(r => setItemsSummary(r.data || [])).catch(() => {});
       }
+      showToast('SIV deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete SIV.');
     } finally {
@@ -1222,6 +1238,7 @@ const SIV = () => {
           #siv-print-document { box-shadow: none !important; width: 100% !important; margin: 0 !important; }
         }
       `}</style>
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

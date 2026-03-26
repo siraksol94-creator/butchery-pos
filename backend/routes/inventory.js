@@ -27,7 +27,7 @@ const balanceSQL = (tenantId) => ({
   ) store_agg ON store_agg.product_sync_id = p.sync_id
   LEFT JOIN (
     SELECT product_sync_id, SUM(quantity) AS sales_balance
-    FROM stock_movements WHERE location = 'sales' AND deleted_at IS NULL AND product_sync_id IS NOT NULL GROUP BY product_sync_id
+    FROM stock_movements WHERE location = 'sales' AND product_sync_id IS NOT NULL GROUP BY product_sync_id
   ) sales_agg ON sales_agg.product_sync_id = p.sync_id
   LEFT JOIN (
     SELECT product_sync_id, SUM(quantity) AS opening_balance

@@ -3,6 +3,7 @@ import { getStoreInventory } from '../services/api';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { FiPlus, FiTrendingUp, FiTrendingDown, FiCalendar, FiPackage, FiX, FiTrash2 } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const StockAdjustment = () => {
   const { t } = useLanguage();
@@ -12,6 +13,12 @@ const StockAdjustment = () => {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Form state
   const [productId, setProductId] = useState('');
@@ -70,6 +77,7 @@ const StockAdjustment = () => {
       setShowForm(false);
       await fetchData();
       fetchProducts();
+      showToast('Stock adjustment saved successfully.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save adjustment.');
     } finally {
@@ -83,6 +91,7 @@ const StockAdjustment = () => {
       await api.delete(`/stock-adjustments/${adj.id}`);
       await fetchData();
       fetchProducts();
+      showToast('Adjustment deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete adjustment.');
     }
@@ -344,6 +353,7 @@ const StockAdjustment = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

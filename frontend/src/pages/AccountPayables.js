@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAccountPayables, getAccountPayableStats, createApPayment, getSupplierBreakdown, updateApPayment, deleteApPayment, getSettings } from '../services/api';
 import { FiDollarSign, FiAlertCircle, FiUsers, FiTrendingDown, FiX, FiChevronRight, FiPrinter, FiEdit2, FiSave, FiTrash2 } from 'react-icons/fi';
+import Toast from '../components/Toast';
 
 const getStatusBadge = (status) => {
   const map = { 'Paid': 'badge-green', 'Partial': 'badge-orange', 'Unpaid': 'badge-red', 'No Purchases': 'badge-gray' };
@@ -21,6 +22,12 @@ const AccountPayables = () => {
   const [editingPayment, setEditingPayment] = useState(null); // { id, amount, date, description, paid_from }
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchData = async () => {
     try {
@@ -61,6 +68,7 @@ const AccountPayables = () => {
       });
       setPayModal(null);
       fetchData();
+      showToast('Payment recorded successfully.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment.');
     } finally {
@@ -80,6 +88,7 @@ const AccountPayables = () => {
 
   const handleSaveEdit = async () => {
     if (!editingPayment.amount || parseFloat(editingPayment.amount) <= 0) { setEditError('Enter a valid amount.'); return; }
+    if (!window.confirm('Are you sure you want to update this record?')) return;
     setEditSaving(true);
     setEditError('');
     try {
@@ -94,6 +103,7 @@ const AccountPayables = () => {
       const res = await getSupplierBreakdown(breakdown.supplier.id || breakdown.supplier.supplier_id);
       setBreakdown(res.data);
       fetchData();
+      showToast('Payment updated successfully.');
     } catch (err) {
       setEditError(err.response?.data?.error || 'Failed to update payment.');
     } finally {
@@ -108,6 +118,7 @@ const AccountPayables = () => {
       const res = await getSupplierBreakdown(breakdown.supplier.id || breakdown.supplier.supplier_id);
       setBreakdown(res.data);
       fetchData();
+      showToast('Payment deleted.', 'error');
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete payment.');
     }
@@ -481,6 +492,7 @@ const AccountPayables = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

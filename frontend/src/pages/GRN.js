@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getGRNs, getGRNStats, createGRN, getProducts, getSuppliers, createSupplier, getSettings, getGRNProductReport, getGRN, updateGRN, deleteGRN, createApPayment } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import Toast from '../components/Toast';
 import { FiPlus, FiFileText, FiCalendar, FiUsers, FiClock, FiX, FiTrash2, FiPrinter, FiSearch, FiChevronDown, FiChevronUp, FiPackage, FiEdit2, FiEye, FiDollarSign } from 'react-icons/fi';
 
 const defaultStats = { totalGRNs: 0, thisMonth: 0, suppliers: 0, pending: 0 };
@@ -72,6 +73,13 @@ const GRN = () => {
   const [payForm, setPayForm]           = useState({ amount: '', date: '', description: '', paid_from: 'Main Cashier' });
   const [paySaving, setPaySaving]       = useState(false);
   const [payError, setPayError]         = useState('');
+
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // ── Quick-add supplier ────────────────────────────────────────────
   const [showAddSupplier, setShowAddSupplier]   = useState(false);
@@ -170,6 +178,7 @@ const GRN = () => {
       await deleteGRN(viewGRN.id);
       setViewGRN(null);
       fetchData();
+      showToast('GRN deleted.', 'error');
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to delete GRN.';
       const violations = err.response?.data?.violations;
@@ -265,15 +274,22 @@ const GRN = () => {
         unit_price: parseFloat(i.unit_price),
       })),
     };
+    if (editMode) {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     try {
       if (editMode) {
         await updateGRN(editId, payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('GRN updated successfully.');
       } else {
         await createGRN(payload);
+        setShowForm(false);
+        await fetchData();
+        showToast('GRN saved successfully.');
       }
-      setShowForm(false);
-      await fetchData();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save GRN. Please try again.');
     } finally { setSaving(false); }
@@ -1463,6 +1479,7 @@ const GRN = () => {
           </div>
         </div>
       )}
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };

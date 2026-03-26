@@ -1,6 +1,6 @@
 {
   "name": "butchery-pro-frontend",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "private": true,
   "main": "electron/main.js",
   "homepage": "./",

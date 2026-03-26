@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getProductions, getProductionStats, createProduction, updateProduction, deleteProduction, getProduction, getSettings } from '../services/api';
 import { getStoreInventory } from '../services/api';
+import Toast from '../components/Toast';
 import { FiPlus, FiTrash2, FiX, FiEye, FiTool, FiAlertTriangle, FiPrinter, FiEdit2 } from 'react-icons/fi';
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -25,6 +26,12 @@ const Production = () => {
   const [printItemsMap, setPrintItemsMap]         = useState({});
   const [printItemsLoading, setPrintItemsLoading] = useState(false);
   const [businessInfo, setBusinessInfo]           = useState({});
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Form state
   const [date, setDate]     = useState(new Date().toISOString().split('T')[0]);
@@ -163,16 +170,23 @@ const Production = () => {
     const validOutputs = outputs.filter(r => r.product_id && parseFloat(r.quantity) > 0);
     if (!validInputs.length)  { setError('Add at least one input with a valid product and quantity.'); return; }
     if (!validOutputs.length) { setError('Add at least one output with a valid product and quantity.'); return; }
+    if (modal === 'edit') {
+      if (!window.confirm('Are you sure you want to update this record?')) return;
+    }
     setSaving(true);
     setError('');
     try {
       if (modal === 'edit') {
         await updateProduction(selected.id, { date, notes, inputs: validInputs, outputs: validOutputs });
+        await fetchAll();
+        closeModal();
+        showToast('Production entry updated successfully.');
       } else {
         await createProduction({ date, notes, inputs: validInputs, outputs: validOutputs });
+        await fetchAll();
+        closeModal();
+        showToast('Production entry saved successfully.');
       }
-      await fetchAll();
-      closeModal();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save production entry.');
     }
@@ -185,6 +199,7 @@ const Production = () => {
       await deleteProduction(selected.id);
       await fetchAll();
       closeModal();
+      showToast('Production entry deleted.', 'error');
     } catch { setError('Failed to delete.'); }
     setDeleting(false);
   };
@@ -844,6 +859,7 @@ const Production = () => {
           }
         }
       `}</style>
+      <Toast message={toast?.msg} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 };
