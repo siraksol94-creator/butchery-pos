@@ -580,3 +580,17 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Butchery Pro server running on port ${PORT}`);
 });
+
+// ─── Nightly cleanup: remove already-deleted reconciliation movements ────────
+function cleanStaleReconciliations() {
+  try {
+    const result = db.prepare(
+      `DELETE FROM stock_movements WHERE movement_type = 'reconciliation' AND deleted_at IS NOT NULL`
+    ).run();
+    if (result.changes > 0) console.log(`[cleanup] Removed ${result.changes} stale reconciliation(s)`);
+  } catch (e) {
+    console.error('[cleanup] Failed:', e.message);
+  }
+}
+cleanStaleReconciliations(); // run once on startup
+setInterval(cleanStaleReconciliations, 24 * 60 * 60 * 1000); // then every 24 hours

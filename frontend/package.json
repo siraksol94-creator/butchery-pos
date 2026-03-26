@@ -1,6 +1,6 @@
 {
   "name": "butchery-pro-frontend",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "private": true,
   "main": "electron/main.js",
   "homepage": "./",
@@ -76,7 +76,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": false
     }
   },
   "browserslist": {
