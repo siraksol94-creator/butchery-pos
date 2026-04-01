@@ -63,6 +63,7 @@ app.use('/api/production',       require('./routes/production'));
 app.use('/api/sales-returns',    require('./routes/salesReturns'));
 app.use('/api/ap-payments',      require('./routes/apPayments'));
 app.use('/api/sync',             require('./routes/sync'));
+app.use('/api/tenant-admin',     require('./routes/tenantAdmin'));
 app.use('/admin',                require('./routes/admin'));
 
 app.get('/api/health', (req, res) => {
